@@ -63,6 +63,14 @@ database:
   name:
 
 restore:
+
+  # restore type: [ database | archive ]
+  # default value is "database"
+  #
+  # A database restore restores ALL archives of the database - ie restarts the database at a previous state
+  # An archive restore restores/repairs a single archive in a RUNNING database
+  type: "database"
+
   # name of the existing database being restored 
   target: ""
 

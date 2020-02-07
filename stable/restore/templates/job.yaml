@@ -26,6 +26,8 @@ spec:
         ##
         args:
         - "nuorestore"
+        - "--type"
+        - {{ default "database" .Values.restore.type }}
         - "--db-name"
         - "{{ include "restore.target" . }}"
         - "--source"

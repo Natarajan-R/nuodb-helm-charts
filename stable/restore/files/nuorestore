@@ -66,8 +66,13 @@ if [ -n "$restore_credentials" ]; then
         --unconditional
 fi
 
+echo "Setting flag for database $db_name to restore from $restore_source on next database/SM startup"
+
 
 if [ "$restore_type" = "database" ]; then
+
+   echo "Setting flag for database $db_name to initiate a new FULL backup after next restart"
+
    # Set the semaphores to create a new backupset from a full backup
    nuocmd --api-server $NUOCMD_API_SERVER set value --key $semaphore/$db_name --value "true" --unconditional
 
@@ -76,7 +81,15 @@ if [ "$restore_type" = "database" ]; then
    done
 
    # optionally do automatic initiation of the restore
-   [ "$auto" = "true" ] && nuocmd --api-server $NUOCMD_API_SERVER shutdown database --db-name $db_name
+   if [ "$auto" = "true" ]; then
+      echo "restore.autoRestart=true - initiating full database restart for database $db_name"
+
+      nuocmd --api-server $NUOCMD_API_SERVER shutdown database --db-name $db_name
+   else
+      echo "restore.autoRestart=false. Restore will be performed when the database - or SM(s) - are manually restarted - over to you..."
+   fi
+else
+   echo "Flag set for $restore_type restore. Restore will be performed when the chosen SM is manually restarted - over to you..."
 fi
 
 echo "Restore job completed"
