@@ -56,13 +56,15 @@ admin:
   #   secret: nuodb-client-pem
   #   key: client.pem
 
-database:
-  # name
-  # NuoDB Database name.  must consist of lowercase alphanumeric
-  # characters '[a-z0-9]+'
-  name:
-
 restore:
+
+  ## Provide a name in place of prometheus-operator for `app:` labels
+  ##
+  #nameOverride: ""
+
+  ## Provide a name to substitute for the full names of resources
+  ##
+  #fullnameOverride: ""
 
   # restore type: [ database | archive ]
   # default value is "database"
@@ -72,7 +74,7 @@ restore:
   type: "database"
 
   # name of the existing database being restored 
-  target: ""
+  target: "demo"
 
   # source
   # Can be one of:
