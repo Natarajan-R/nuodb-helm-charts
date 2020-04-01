@@ -7,6 +7,7 @@ import (
 	"github.com/gruntwork-io/terratest/modules/helm"
 	"github.com/nuodb/nuodb-helm-charts/test/testlib"
 	"testing"
+	"time"
 )
 
 func TestKubernetesBasicAdminSingleReplica(t *testing.T) {
@@ -107,4 +108,27 @@ func TestKubernetesFullNameOverride(t *testing.T) {
 	_, namespaceName := testlib.StartAdmin(t, options, 1, "")
 
 	t.Run("verifyAdminState", func(t *testing.T) { testlib.VerifyAdminState(t, namespaceName, admin0) })
+}
+
+func TestKubernetesBasicAdminStartUnlicensedAdmin(t *testing.T) {
+	testlib.AwaitTillerUp(t)
+	defer testlib.VerifyTeardown(t)
+
+	options := helm.Options{
+		SetValues: map[string]string{},
+	}
+
+	defer testlib.Teardown(testlib.TEARDOWN_ADMIN)
+
+	helmChartReleaseName, namespaceName := testlib.InstallAdminHelmChart(t, &options, "")
+
+	admin0 := fmt.Sprintf("%s-nuodb-cluster0-0", helmChartReleaseName)
+
+	testlib.AwaitNrReplicasScheduled(t, namespaceName, helmChartReleaseName, 1)
+	testlib.AwaitPodRestartCountGreaterThan(t, namespaceName, admin0, 0)
+
+	testlib.Await(t, func() bool {
+		return testlib.GetStringOccurenceInLog(t, namespaceName, admin0,
+			"A valid NuoDB license was not specified. Can not start NuoDB admin.") > 0
+	}, 60*time.Second)
 }

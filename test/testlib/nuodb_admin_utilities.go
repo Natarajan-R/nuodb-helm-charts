@@ -39,32 +39,9 @@ func CreateNamespace(t *testing.T, namespaceName string) {
 }
 
 func StartAdmin(t *testing.T, options *helm.Options, replicaCount int, namespace string) (helmChartReleaseName string, namespaceName string) {
-	randomSuffix := strings.ToLower(random.UniqueId())
-
-	// Path to the helm chart we will test
-	helmChartPath := ADMIN_HELM_CHART_PATH
-	helmChartReleaseName = fmt.Sprintf("admin-%s", randomSuffix)
-
-	if namespace == "" {
-		callerName := getFunctionCallerName()
-		namespaceName = fmt.Sprintf("%s-%s", strings.ToLower(callerName), randomSuffix)
-
-		CreateNamespace(t, namespaceName)
-	} else {
-		namespaceName = namespace
-	}
-
-	kubectlOptions := k8s.NewKubectlOptions("", "")
-	options.KubectlOptions = kubectlOptions
-	options.KubectlOptions.Namespace = namespaceName
-
 	InjectTestVersion(t, options)
-	helm.Install(t, options, helmChartPath, helmChartReleaseName)
+	helmChartReleaseName, namespaceName = InstallAdminHelmChart(t, options, namespaceName)
 
-	AddTeardown(TEARDOWN_ADMIN, func() {
-		helm.Delete(t, options, helmChartReleaseName, true)
-	})
-	
 	adminNames := make([]string, replicaCount)
 
 	for i := 0; i < replicaCount; i++ {
@@ -106,6 +83,35 @@ func StartAdmin(t *testing.T, options *helm.Options, replicaCount int, namespace
 	for i := 0; i < replicaCount; i++ {
 		AwaitAdminFullyConnected(t, namespaceName, adminNames[i], replicaCount)
 	}
+
+	return
+}
+
+func InstallAdminHelmChart(t *testing.T, options *helm.Options, namespace string) (helmChartReleaseName string, namespaceName string) {
+	randomSuffix := strings.ToLower(random.UniqueId())
+
+	// Path to the helm chart we will test
+	helmChartPath := ADMIN_HELM_CHART_PATH
+	helmChartReleaseName = fmt.Sprintf("admin-%s", randomSuffix)
+
+	if namespace == "" {
+		callerName := getFunctionCallerName()
+		namespaceName = fmt.Sprintf("%s-%s", strings.ToLower(callerName), randomSuffix)
+
+		CreateNamespace(t, namespaceName)
+	} else {
+		namespaceName = namespace
+	}
+
+	kubectlOptions := k8s.NewKubectlOptions("", "")
+	options.KubectlOptions = kubectlOptions
+	options.KubectlOptions.Namespace = namespaceName
+
+	helm.Install(t, options, helmChartPath, helmChartReleaseName)
+
+	AddTeardown(TEARDOWN_ADMIN, func() {
+		helm.Delete(t, options, helmChartReleaseName, true)
+	})
 
 	return
 }
