@@ -306,10 +306,7 @@ func TestAdminMultiClusterEnvVars(t *testing.T) {
 			envVariables[value.Name] = value.Value
 		}
 
-		// This is the NUODB_DOMAIN_ENTRYPOINT variable
-		assert.Check(t, envVariables["NUODB_DOMAIN_ENTRYPOINT"] == "release-name-nuodb-cluster-1-admin-0.nuodb.$(NAMESPACE).svc.cluster1.local")
-
-		// This is the NUODB_ALT_ADDRESS variable
-		assert.Check(t, envVariables["NUODB_ALT_ADDRESS"] == "$(POD_NAME).nuodb.$(NAMESPACE).svc.cluster2.local")
+		assert.Check(t, strings.EqualFold(envVariables["NUODB_DOMAIN_ENTRYPOINT"], "release-name-nuodb-cluster-1-admin-0.nuodb.$(NAMESPACE).svc.cluster1.local"))
+		assert.Check(t, strings.EqualFold(envVariables["NUODB_ALT_ADDRESS"], "$(POD_NAME).nuodb.$(NAMESPACE).svc.cluster2.local"))
 	}
 }
