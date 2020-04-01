@@ -2,6 +2,12 @@
 
 . ${NUODB_HOME}/etc/nuodb_setup.sh
 
+if grep -q "PLEASE REPLACE THIS LICENSE WITH A VALID NUODB LICENSE" /etc/nuodb/nuodb.lic; then
+  echo "A valid NuoDB license was not specified. Can not start NuoDB admin."
+  exit 1
+fi
+
+
 if [ -e ${NUODB_CFGDIR}/jvm-options -a "$NUODB_JAVA_OPTS" = "" ] ; then
     . ${NUODB_CFGDIR}/jvm-options
 fi

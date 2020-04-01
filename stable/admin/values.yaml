@@ -163,9 +163,18 @@ admin:
   #
   # --set admin.configFiles.nuodb\\.lic=<BASE64-TEXT-HERE>
   #
-  configFiles: {}
-    # nuodb.lic: |-
+  configFiles:
     #   "PUT YOUR BASE64 ENCODED LICENSE CONTENT HERE"
+    nuodb.lic: |-
+      PLEASE REPLACE THIS LICENSE WITH A VALID NUODB LICENSE
+      -----BEGIN LICENSE-----
+      nuodb license key line 1
+      nuodb license key line 2
+      nuodb license key line 3
+      nuodb license key line 4
+      nuodb license key line 5
+      nuodb license key line 6
+      -----END LICENSE-----
 
   # Recommended default admin affinity:
   # affinity: {}

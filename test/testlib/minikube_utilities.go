@@ -87,6 +87,14 @@ func RemoveEmptyLines(s string) string {
 }
 
 func InjectTestVersion(t *testing.T, options *helm.Options) {
+	if options.SetValues == nil {
+		options.SetValues = make(map[string]string)
+	}
+
+	if options.SetValues["admin.configFiles.nuodb\\.lic"] == ""  {
+		options.SetValues["admin.configFiles.nuodb\\.lic"] = "null"
+	}
+
 	dat, err := ioutil.ReadFile(INJECT_FILE)
 	if err != nil {
 		return
@@ -107,13 +115,10 @@ func InjectTestVersion(t *testing.T, options *helm.Options) {
 	err, image := UnmarshalImageYAML(string(dat))
 	assert.NilError(t, err)
 
-	if options.SetValues == nil {
-		options.SetValues = make(map[string]string)
-	}
-
 	options.SetValues["nuodb.image.registry"] = image.Nuodb.Image.Registry
 	options.SetValues["nuodb.image.repository"] = image.Nuodb.Image.Repository
 	options.SetValues["nuodb.image.tag"] = image.Nuodb.Image.Tag
+
 }
 
 func GetUpgradedReleaseVersion(t *testing.T, options *helm.Options, suggestedVersion string) string {
