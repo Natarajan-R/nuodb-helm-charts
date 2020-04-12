@@ -60,7 +60,7 @@ The following tables list the configurable parameters for the `busybox` option:
 | `image.registry` | busybox container registry | `docker.io` |
 | `image.repository` | busybox container image name |`busybox`|
 | `image.tag` | busybox container image tag | `latest` |
-| `image.pullPolicy` | busybox container pull policy |`IfNotPresent`|
+| `image.pullPolicy` | busybox container pull policy |`Always`|
 | `image.pullSecrets` | Specify docker-registry secret names as an array | [] (does not add image pull secrets to deployed pods) |
 
 The `registry` option can be used to connect to private image repositories, such as Artifactory.
@@ -83,7 +83,7 @@ busybox:
     registry: docker.io
     repository: busybox
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 ```
 
 #### admin.*
@@ -118,7 +118,7 @@ The following tables list the configurable parameters for the `nuodb` option:
 | `image.registry` | NuoDB container registry | `docker.io` |
 | `image.repository` | NuoDB container image name |`nuodb/nuodb-ce`|
 | `image.tag` | NuoDB container image tag | `latest` |
-| `image.pullPolicy` | NuoDB container pull policy |`IfNotPresent`|
+| `image.pullPolicy` | NuoDB container pull policy |`Always`|
 | `image.pullSecrets` | Specify docker-registry secret names as an array | [] (does not add image pull secrets to deployed pods) |
 
 The `registry` option can be used to connect to private image repositories, such as Artifactory.
@@ -141,7 +141,7 @@ nuodb:
     registry: docker.io
     repository: nuodb/nuodb-ce
     tag: latest
-    pullPolicy: IfNotPresent
+    pullPolicy: Always
 ```
 
 #### restore.*
