@@ -502,6 +502,7 @@ func TestKubernetesRestoreDatabase(t *testing.T) {
 			"database.te.resources.requests.memory": testlib.MINIMAL_VIABLE_ENGINE_MEMORY,
 			"backup.persistence.enabled":            "true",
 			"backup.persistence.size":               "1Gi",
+			"database.options.verbose":				 "index,error,warn",
 		},
 	}
 
