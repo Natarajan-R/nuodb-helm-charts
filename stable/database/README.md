@@ -1,33 +1,20 @@
 # NuoDB Database Helm Chart
 
-This chart starts a NuoDB database deployment on a Kubernetes cluster using the Helm package manager.
+This chart starts a NuoDB database deployment on a Kubernetes cluster using the Helm package manager. To start a second database under the same NuoDB Admin deployment, start a second database using the same instructions with a new database name. 
 
-## TL;DR;
+## Command
 
 ```bash
-helm install nuodb/database
+helm install nuodb/database [--name releaseName] [--set parameter] [--values myvalues.yaml]
 ```
 
-## Prerequisites
+## Software Version Prerequisites
 
-- Kubernetes 1.9+
-- PV provisioner support in the underlying infrastructure (see `{provider}-storage.yaml`)
-- An existing NuoDB Admin cluster has been provisioned
+Please visit the **[NuoDB Helm Chart main page](https://github.com/nuodb/nuodb-helm-charts/#software-release-requirements)** for software version prerequisites.
 
 ## Installing the Chart
 
-### Configuration
-
-The configuration is structured where configuration values are implemented following a single-definition rule, that is, values are structured and scoped, and shared across charts; e.g. for admin, its parameters are specified once in a single values file which is used for all the charts, and the database chart can use admin values for configuring connectivity of engines to a specific admin process. The same goes for other values **shared** amongst Helm charts. A few key points here:
-
-- values files have structure, values are scoped
-- different values files for different deployments
-- values files follow the single definition rule (no repeats)
-- global configuration exists under its own scoped section
-- each chart has its own scoped section named after it
-- cloud information is used to drive availability zones (particularly)
-
-All configurable parameters for each top-level scope is detailed below, organized by scope.
+All configurable parameters for each top-level scope are detailed below, organized by scope.
 
 #### global.*
 
@@ -50,7 +37,7 @@ The following tables list the configurable parameters for the `cloud` option:
 | ----- | ----------- | ------ |
 | `provider` | Cloud provider; permissible values include: `azure`, `amazon`, or `google` |`nil`|
 | `zones` | List of availability zones to deploy to |`[]`|
-| `clusterName` | logical name of the cluster. Useful in multi-cluster configs | `cluster0` |
+| `cluster.name` | logical name of the cluster. Useful in multi-cluster configs | `cluster0` |
 
 For example, for the Google Cloud:
 
@@ -61,7 +48,8 @@ cloud:
     - us-central1-a
     - us-central1-b
     - us-central1-c
-  clusterName: cluster0
+  cluster:
+    name: cluster0
 ```
 
 #### busybox.*
@@ -75,7 +63,7 @@ The following tables list the configurable parameters for the `busybox` option:
 | `image.registry` | busybox container registry | `docker.io` |
 | `image.repository` | busybox container image name |`busybox`|
 | `image.tag` | busybox container image tag | `latest` |
-| `image.pullPolicy` | busybox container pull policy |`Always`|
+| `image.pullPolicy` | busybox container pull policy |`IfNotPresent`|
 | `image.pullSecrets` | Specify docker-registry secret names as an array | [] (does not add image pull secrets to deployed pods) |
 
 The `registry` option can be used to connect to private image repositories, such as Artifactory.
@@ -98,7 +86,7 @@ busybox:
     registry: docker.io
     repository: busybox
     tag: latest
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
 ```
 
 #### nuodb.*
@@ -112,8 +100,10 @@ The following tables list the configurable parameters for the `nuodb` option:
 | `image.registry` | NuoDB container registry | `docker.io` |
 | `image.repository` | NuoDB container image name |`nuodb/nuodb-ce`|
 | `image.tag` | NuoDB container image tag | `latest` |
-| `image.pullPolicy` | NuoDB container pull policy |`Always`|
+| `image.pullPolicy` | NuoDB container pull policy |`IfNotPresent`|
 | `image.pullSecrets` | Specify docker-registry secret names as an array | [] (does not add image pull secrets to deployed pods) |
+| `serviceAccount` | The name of the service account used by NuoDB Pods | `nuodb` |
+| `addRoleBinding` | Whether to add role and role-binding giving `serviceAccount` access to Kubernetes APIs (Pods, PersistentVolumes, PersistentVolumeClaims, StatefulSets) | `true` |
 
 The `registry` option can be used to connect to private image repositories, such as Artifactory.
 
@@ -135,7 +125,7 @@ nuodb:
     registry: docker.io
     repository: nuodb/nuodb-ce
     tag: latest
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
 ```
 
 #### openshift.*
@@ -147,23 +137,19 @@ The following tables list the configurable parameters for the `openshift` option
 | Parameter | Description | Default |
 | ----- | ----------- | ------ |
 | `enabled` | Enable OpenShift features | `false` |
-| `enableDeploymentConfigs` | Prefer DeploymentConfig over Deployment |`false`|
-| `enableRoutes` | Enable OpenShift routes | `true` |
 
-For example, to enable an OpenShift integration, and enable routes:
+For example, to enable an OpenShift integration, and enable DeploymentConfigs:
 
 ```yaml
 openshift:
   enabled: true
-  enableDeploymentConfigs: false
-  enableRoutes: true
 ```
 
 #### admin.*
 
 The purpose of this section is to specify the NuoDB Admin parameters.
 
-The following tables list the configurable parameters for the `admin` option of the admin chart and their default values.
+The following tables list the configurable admin parameters for a database and their default values.
 
 | Parameter | Description | Default |
 | ----- | ----------- | ------ |
@@ -179,25 +165,16 @@ The following tables list the configurable parameters for the `admin` option of 
 | `tlsClientPEM.secret` | TLS client PEM secret name | `nil` |
 | `tlsClientPEM.key` | TLS client PEM secret key | `nil` |
 
-For example, to enable an OpenShift integration, and enable routes:
-
-```yaml
-admin:
-  domain: nuodb
-```
-
 #### admin.configFiles.*
 
-The purpose of this section is to detail how to provide alternate configuration files for NuoDB. NuoDB has several configuration files that may be modified to suit.
+The purpose of this section is to detail how to provide alternative configuration files for NuoDB. 
 
 There are two sets of configuration files documented:
 
-- [Admin Configuration for a Particular Host][1]
-- [Database Configuration for a Particular Host][2]
+- [Admin Configuration for a Particular Deployment][1]
+- [Database Configuration for a Particular Deployment][2]
 
 Any file located in `admin.configFilesPath` can be replaced; the YAML key corresponds to the file name being created or replaced.
-
-The following tables list the configurable parameters for the `admin` option of the admin chart and their default values.
 
 | Key | Description | Default |
 | ----- | ----------- | ------ |
@@ -205,6 +182,15 @@ The following tables list the configurable parameters for the `admin` option of 
 | `nuoadmin.conf` | [NuoDB Admin host properties][4] | `nil` |
 | `nuodb-types.config`| [Type mappings for the NuoDB Migrator tool][5] | `nil` |
 | `nuoadmin.logback.xml` | Logging configuration. NuoDB recommends using the default settings. | `nil` |
+
+#### admin.serviceSuffix
+
+The purpose of this section is to allow customisation of the names of the clusterIP and balancer admin services (load-balancers).
+
+| Key | Description | Default |
+| ----- | ----------- | ------ |
+| `clusterip` | suffix for the clusterIP load-balancer | "clusterip" |
+| `balancer` | suffix for the balancer service | "balancer" |
 
 #### backup.*
 
@@ -251,7 +237,7 @@ The following tables list the configurable parameters of the `database` chart an
 | `sm.hotcopy.successHistory` | Number of successful Jobs to keep | `5` |
 | `sm.hotcopy.failureHostory` | Number of failed jobs to keep | `5` |
 | `sm.hotcopy.backupDir` | Directory path where backiupsets will be stored | `/var/opt/nuodb/backup` |
-| `sm.hotcopy.backupGroup` | Name of the backup group | `{{ .Values.cloud.clusterName }}` |
+| `sm.hotcopy.backupGroup` | Name of the backup group | `{{ .Values.cloud.cluster.name }}` |
 | `sm.hotcopy.fullSchedule` | cron schedule for FULL hotcopy jobs | `35 22 * * 6` |
 | `sm.hotcopy.incrementalSchedule` | cron schedule for INCREMENTAL hotcopy jobs | `35 22 * * 0-5` |
 | `sm.hotcopy.persistence.size` | size of the hotcopy storage PV | `20Gi` |
@@ -264,7 +250,6 @@ The following tables list the configurable parameters of the `database` chart an
 | `sm.hotcopy.coldStorage.credentials` | Credentials for accessing backup cold storage (user:password) | `""` |
 | `sm.noHotCopy.replicas` | SM replicas with hot-copy disabled | `0` |
 | `sm.noHotCopy.enablePod` | Create DS/SS for non-hot-copy SMs | `true` |
-| `sm.memoryOption` | SM engine memory (*future deprecation*) | `"8g"` |
 | `sm.labels` | Labels given to the SMs started | `{}` |
 | `sm.engineOptions` | Additional NuoDB engine options | `{}` |
 | `sm.resources` | Labels to apply to all resources | `{}` |
@@ -275,7 +260,6 @@ The following tables list the configurable parameters of the `database` chart an
 | `te.externalAccess.internalIP` | Whether to use an internal (to the cloud) or external (public) IP address for the load balancer | `nil` |
 | `te.dbServices.enabled` | Whether to deploy clusterip and headless services for direct TE connections (defaults true) | `nil` |
 | `te.replicas` | TE replicas | `1` |
-| `te.memoryOption` | TE engine memory (*future deprecation*) | `"8g"` |
 | `te.labels` | Labels given to the TEs started | `""` |
 | `te.engineOptions` | Additional NuoDB engine options | `""` |
 | `te.resources` | Labels to apply to all resources | `{}` |
@@ -301,8 +285,6 @@ There are two sets of configuration files documented:
 
 Any file located in `database.configFilesPath` can be replaced; the YAML key corresponds to the file name being created or replaced.
 
-The following tables list the configurable parameters for the `database` option of the database chart and their default values.
-
 | Key | Description | Default |
 | ----- | ----------- | ------ |
 | `nuodb.config` | [NuoDB database options][6] | `nil` |
@@ -322,32 +304,28 @@ The following tables list the configurable parameters of the restore chart and t
 
 ### Running
 
-Deploy storage classes and volumes (or suitable replacement):
+The purpose of this section is to allow customisation of the names of the clusterIP and balancer database services (load-balancers).
 
-```bash
-kubectl create -f stable/database/${cloud_provider}-storage.yaml
-```
+| Key | Description | Default |
+| ----- | ----------- | ------ |
+| `clusterip` | suffix for the clusterIP load-balancer | .Values.admin.serviceSuffix.clusterip |
+| `balancer` | suffix for the balancer service | .Values.admin.serviceSuffix.balancer |
 
-  **Hint:** The `nuodb-archive` storage class is provisioned by the prior command, and used below.
+### Running
 
 Verify the Helm chart:
 
 ```bash
-helm install nuodb/database -n database \
-    --set sm.persistence.storageClass=standard-storage \
+helm install nuodb/database --name database \
     --debug --dry-run
 ```
 
 Deploy a database without backups:
 
 ```bash
-helm install nuodb/database -n database \
-    --set sm.persistence.storageClass=standard-storage
+helm install nuodb/database --name database \
+    --set database.sm.hotcopy.replicas=0 --set database.sm.nohotcopy.replicas=1
 ```
-
-The command deploys NuoDB on the Kubernetes cluster in the default configuration. The configuration section lists the parameters that can be configured during installation.
-
-  **Tip**: List all releases using `helm list`
 
 Wait until the deployment completes:
 
@@ -375,8 +353,6 @@ Verify the connected states of the database domain:
 ```bash
 $ kubectl exec -it admin-nuodb-0 -- nuocmd show domain
 
-sh-4.2$ nuocmd show domain
-
 server version: 4.0-2-ef765f7906, server license: Enterprise
 server time: 2019-08-29T13:31:10.325, client token: b2c99602e831c0ad61e9becd518e4d5b323d6b3f
 Servers:
@@ -401,7 +377,7 @@ deployment.extensions/te-database-nuodb-demo scaled
 
 ## Cleaning Up Archive References
 
-This will clear the archive references and metadata between test runs:
+This will clear the archive references and metadata from the admin layer if the default demo database was recreated
 
 ```bash
 kubectl exec -it admin-nuodb-0  -- /bin/bash
@@ -426,7 +402,6 @@ To uninstall/delete the deployment:
 
 ```bash
 helm del --purge database
-kubectl delete -f stable/database/${cloud_provider}-storage.yaml
 ```
 
 The command removes all the Kubernetes components associated with the chart and deletes the release.

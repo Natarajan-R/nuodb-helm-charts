@@ -150,41 +150,6 @@ func TestDatabaseDaemonSetEnabled(t *testing.T) {
 	assert.Check(t, cnt == 2)
 }
 
-func TestDatabaseDeploymentConfigDisabled(t *testing.T) {
-	// Path to the helm chart we will test
-	helmChartPath := "../../stable/database"
-
-	options := &helm.Options{
-		SetValues: map[string]string{},
-	}
-
-	// Run RenderTemplate to render the template and capture the output.
-	output := helm.RenderTemplate(t, options, helmChartPath, []string{"templates/deploymentconfig.yaml"})
-
-	parts := strings.Split(output, "---")
-	for _, part := range parts {
-		if len(part) == 0 {
-			continue
-		}
-
-		assert.Check(t, !strings.Contains(part, "kind: DeploymentConfig"))
-	}
-}
-
-func TestDatabaseDeploymentConfigRenders(t *testing.T) {
-	// Path to the helm chart we will test
-	helmChartPath := "../../stable/database"
-
-	options := &helm.Options{
-		SetValues: map[string]string{"openshift.enabled": "true", "openshift.enableDeploymentConfigs": "true"},
-	}
-
-	// Run RenderTemplate to render the template and capture the output.
-	output := helm.RenderTemplate(t, options, helmChartPath, []string{"templates/deploymentconfig.yaml"})
-
-	assert.Check(t, strings.Contains(output, "kind: DeploymentConfig"))
-}
-
 func TestDatabaseClusterServiceRenders(t *testing.T) {
 	// Path to the helm chart we will test
 	helmChartPath := "../../stable/database"
@@ -328,33 +293,19 @@ func TestDatabaseStatefulSetVolumes(t *testing.T) {
 
 			var ss appsv1.StatefulSet
 			helm.UnmarshalK8SYaml(t, part, &ss)
-			
+
 			if strings.Contains(part, "-hotcopy") {
 				assert.Check(t, strings.Contains(ss.Spec.VolumeClaimTemplates[0].ObjectMeta.Name, "archive-volume"))
 				assert.Check(t, strings.Contains(ss.Spec.VolumeClaimTemplates[1].ObjectMeta.Name, "backup-volume"))
 				assert.Check(t, strings.Contains(ss.Spec.VolumeClaimTemplates[2].ObjectMeta.Name, "log-volume"))
 			} else {
 				assert.Check(t, strings.Contains(ss.Spec.VolumeClaimTemplates[0].ObjectMeta.Name, "archive-volume"))
-				assert.Check(t, strings.Contains(ss.Spec.VolumeClaimTemplates[1].ObjectMeta.Name, "log-volume"))	
+				assert.Check(t, strings.Contains(ss.Spec.VolumeClaimTemplates[1].ObjectMeta.Name, "log-volume"))
 			}
 		}
 	}
 
 	assert.Check(t, cnt == 2)
-}
-
-func TestDatabaseDeploymentDisabled(t *testing.T) {
-	// Path to the helm chart we will test
-	helmChartPath := "../../stable/database"
-
-	options := &helm.Options{
-		SetValues: map[string]string{"openshift.enabled": "true", "openshift.enableDeploymentConfigs": "true"},
-	}
-
-	// Run RenderTemplate to render the template and capture the output.
-	output := helm.RenderTemplate(t, options, helmChartPath, []string{"templates/deployment.yaml"})
-
-	assert.Check(t, !strings.Contains(output, "kind: Deployment"))
 }
 
 func TestDatabaseDeploymentRenders(t *testing.T) {
@@ -410,24 +361,6 @@ func TestDatabaseOtherOptions(t *testing.T) {
 		output := helm.RenderTemplate(t, options, helmChartPath, []string{"templates/deployment.yaml"})
 
 		assert.Check(t, strings.Contains(output, "kind: Deployment"))
-
-		var obj appsv1.Deployment
-		helm.UnmarshalK8SYaml(t, output, &obj)
-
-		basicArgChecks(obj.Spec.Template.Spec.Containers[0].Args)
-		basicEnvChecks(obj.Spec.Template.Spec.Containers[0].Env)
-	})
-
-	t.Run("testDeploymentConfig", func(t *testing.T) {
-		// make a copy
-		localOptions := *options
-		localOptions.SetValues["openshift.enabled"] = "true"
-		localOptions.SetValues["openshift.enableDeploymentConfigs"] = "true"
-
-		// Run RenderTemplate to render the template and capture the output.
-		output := helm.RenderTemplate(t, &localOptions, helmChartPath, []string{"templates/deploymentconfig.yaml"})
-
-		assert.Check(t, strings.Contains(output, "kind: DeploymentConfig"))
 
 		var obj appsv1.Deployment
 		helm.UnmarshalK8SYaml(t, output, &obj)
@@ -517,23 +450,6 @@ func TestDatabaseCustomEnv(t *testing.T) {
 		output := helm.RenderTemplate(t, options, helmChartPath, []string{"templates/deployment.yaml"})
 
 		assert.Check(t, strings.Contains(output, "kind: Deployment"))
-
-		var obj appsv1.Deployment
-		helm.UnmarshalK8SYaml(t, output, &obj)
-
-		basicEnvChecks(obj.Spec.Template.Spec.Containers[0].Env)
-	})
-
-	t.Run("testDeploymentConfig", func(t *testing.T) {
-		// make a copy
-		localOptions := *options
-		localOptions.SetValues["openshift.enabled"] = "true"
-		localOptions.SetValues["openshift.enableDeploymentConfigs"] = "true"
-
-		// Run RenderTemplate to render the template and capture the output.
-		output := helm.RenderTemplate(t, &localOptions, helmChartPath, []string{"templates/deploymentconfig.yaml"})
-
-		assert.Check(t, strings.Contains(output, "kind: DeploymentConfig"))
 
 		var obj appsv1.Deployment
 		helm.UnmarshalK8SYaml(t, output, &obj)
@@ -659,45 +575,6 @@ func TestDatabaseDaemonSetVPNRenders(t *testing.T) {
 	}
 }
 
-func TestDatabaseDeploymentConfigVPNRenders(t *testing.T) {
-	// Path to the helm chart we will test
-	helmChartPath := "../../stable/database"
-
-	options := &helm.Options{
-		SetValues: map[string]string{
-			"database.securityContext.capabilities[0]": "NET_ADMIN",
-			"database.envFrom.configMapRef[0]":         "test-config",
-			"openshift.enabled":                        "true",
-			"openshift.enableDeploymentConfigs":        "true",
-		},
-	}
-
-	// Run RenderTemplate to render the template and capture the output.
-	output := helm.RenderTemplate(t, options, helmChartPath, []string{"templates/statefulset.yaml"})
-
-	// NTJ - Sadly, doesn't work. YAML.v3 still creates map[interface{}]interface{}  :(
-	// m := make(map[string]interface{})
-
-	parts := strings.Split(output, "---")
-
-	for _, part := range parts {
-		if len(part) == 0 {
-			continue
-		}
-
-		if !strings.Contains(part, "kind: DeploymentConfig") {
-			continue
-		}
-
-		var object appsv1.StatefulSet
-		helm.UnmarshalK8SYaml(t, part, &object)
-
-		adminContainer := object.Spec.Template.Spec.Containers[0]
-		assert.Check(t, adminContainer.SecurityContext.Capabilities.Add[0], "NET_ADMIN")
-		assert.Check(t, adminContainer.EnvFrom[0].ConfigMapRef.LocalObjectReference.Name, "test-config")
-	}
-}
-
 func TestDatabaseLabeling(t *testing.T) {
 	// Path to the helm chart we will test
 	helmChartPath := "../../stable/database"
@@ -724,23 +601,6 @@ func TestDatabaseLabeling(t *testing.T) {
 		output := helm.RenderTemplate(t, options, helmChartPath, []string{"templates/deployment.yaml"})
 
 		assert.Check(t, strings.Contains(output, "kind: Deployment"))
-
-		var obj appsv1.Deployment
-		helm.UnmarshalK8SYaml(t, output, &obj)
-
-		basicChecks(obj.Spec.Template.Spec.Containers[0].Args)
-	})
-
-	t.Run("testDeploymentConfig", func(t *testing.T) {
-		// make a copy
-		localOptions := *options
-		localOptions.SetValues["openshift.enabled"] = "true"
-		localOptions.SetValues["openshift.enableDeploymentConfigs"] = "true"
-
-		// Run RenderTemplate to render the template and capture the output.
-		output := helm.RenderTemplate(t, &localOptions, helmChartPath, []string{"templates/deploymentconfig.yaml"})
-
-		assert.Check(t, strings.Contains(output, "kind: DeploymentConfig"))
 
 		var obj appsv1.Deployment
 		helm.UnmarshalK8SYaml(t, output, &obj)
@@ -838,23 +698,6 @@ func TestReadinessProbe(t *testing.T) {
 		basicChecks(obj.Spec.Template.Spec)
 	})
 
-	t.Run("testDeploymentConfig", func(t *testing.T) {
-		// make a copy
-		localOptions := *options
-		localOptions.SetValues["openshift.enabled"] = "true"
-		localOptions.SetValues["openshift.enableDeploymentConfigs"] = "true"
-
-		// Run RenderTemplate to render the template and capture the output.
-		output := helm.RenderTemplate(t, &localOptions, helmChartPath, []string{"templates/deploymentconfig.yaml"})
-
-		assert.Check(t, strings.Contains(output, "kind: DeploymentConfig"))
-
-		var obj appsv1.Deployment
-		helm.UnmarshalK8SYaml(t, output, &obj)
-
-		basicChecks(obj.Spec.Template.Spec)
-	})
-
 	t.Run("testStatefulSet", func(t *testing.T) {
 		// Run RenderTemplate to render the template and capture the output.
 		output := helm.RenderTemplate(t, options, helmChartPath, []string{"templates/statefulset.yaml"})
@@ -926,4 +769,20 @@ func volumesContain(mounts []v1.Volume, expectedName string) bool {
 		}
 	}
 	return false
+}
+
+func TestDatabaseConfigDoesNotContainEmptyBlocks(t *testing.T) {
+	// Path to the helm chart we will test
+	helmChartPath := "../../stable/database"
+
+	options := &helm.Options{
+		SetValues: map[string]string{
+			"database.configFiles": "null",
+		},
+	}
+
+	// Run RenderTemplate to render the template and capture the output.
+	output := helm.RenderTemplate(t, options, helmChartPath, []string{"templates/configmap.yaml"})
+
+	assert.Assert(t, !strings.Contains(output, "---\n---"))
 }

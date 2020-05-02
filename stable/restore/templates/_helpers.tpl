@@ -20,7 +20,7 @@ We truncate at 63 chars because some Kubernetes name fields are limited to this 
 */}}
 {{- define "restore.fullname" -}}
 {{- $domain := default "domain" .Values.admin.domain -}}
-{{- $cluster := default "cluster0" .Values.cloud.clusterName -}}
+{{- $cluster := default "cluster0" .Values.cloud.cluster.name -}}
 {{- $target := include "restore.target" . -}}
 {{- if .Values.restore.fullnameOverride -}}
 {{- .Values.restore.fullnameOverride | trunc 63 | trimSuffix "-" -}}

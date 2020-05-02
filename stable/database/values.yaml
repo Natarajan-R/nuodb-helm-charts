@@ -15,17 +15,18 @@ cloud:
   #   - us-east-2b
   #   - us-east-2c
 
-  # cluster name is used to make resources unique in multi-cluster configurations.
-  # If the NuoDB domain spans 2 or more physical clusters, then each cluster must have a unique clusterName.
-  # The default is fine for single-cluster domains.
-  clusterName: cluster0
+  cluster:
+    # cluster name is used to make resources unique in multi-cluster configurations.
+    # If the NuoDB domain spans 2 or more physical clusters, then each cluster must have a unique cluster.name.
+    # The default is fine for single-cluster domains.
+    name: cluster0
 
 busybox:
   image:
     registry: docker.io
     repository: busybox
     tag: latest
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets.
     ## Secrets must be manually created in the namespace.
     ## ref: https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
@@ -40,8 +41,8 @@ nuodb:
   image:
     registry: docker.io
     repository: nuodb/nuodb-ce
-    tag: 4.0.3
-    pullPolicy: Always
+    tag: 4.0.5
+    pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets.
     ## Secrets must be manually created in the namespace.
     ## ref: https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod
@@ -61,6 +62,14 @@ nuodb:
   # the prefix for the shared latest backup ringbuffer - default value is always valid
   latestKey: ""
 
+  # the name of the ServiceAccount to use for all NuoDB Pods
+  serviceAccount: nuodb
+
+  # unless set to false, a Role and RoleBinding named "nuodb-kube-inspector"
+  # that grants access to Pods, PersistentVolumeClaims, PersistentVolumes, and
+  # StatefulSets is added to nuodb.serviceAccount
+  addRoleBinding: true
+
 admin:
   # domain is the name of the NuoDB administration domain (e.g. the cluster name)
   domain: nuodb
@@ -76,6 +85,10 @@ admin:
   # tlsClientPEM:
   #   secret: nuodb-client-pem
   #   key: nuocmd.pem
+
+  serviceSuffix:
+    clusterip: "clusterip"
+    balancer: "balancer"
 
 database:
   ## Provide a name in place of prometheus-operator for `app:` labels
@@ -157,6 +170,12 @@ database:
     stripLevels: "1"
     type: ""
 
+  # The names of the clusterIP and balancer services can be adjusted by customising the suffix
+  # The default is to use the same as specified for the admin clusterIP and balancer load-balancers.
+  serviceSuffix:
+    clusterip: ""
+    balancer: ""
+
   sm:
     ## Enable persistent log volumes to retain logs when an external logging solution is not used.
     logPersistence:
@@ -192,7 +211,7 @@ database:
 
       backupDir: /var/opt/nuodb/backup
 
-      # group for selecting the SM(s) to backup - the default is the cloud.clusterName
+      # group for selecting the SM(s) to backup - the default is the cloud.cluster.name
       backupGroup: ""
 
       ## Schedule for the running of the full backup cron job
@@ -227,11 +246,9 @@ database:
       enablePod: true
       replicas: 0
 
-    # NuoDB mem option - target maximum memory to be used by the cache
-    memoryOption: 8g
-
     ## resources
-    # k8s resouce min (request) and max (limit)
+    # k8s resource min (request) and max (limit)
+    # min is also used for the target maximum memory used by the cache (NuoDB --mem option)
     resources:
       limits:
         cpu: 8
@@ -279,9 +296,9 @@ database:
     # Number of transaction engines (TE) nodes.  Limit is 3 in CE version of NuoDB 
     replicas: 1
 
-    # NuoDB mem option - target maximum memory to be used by the cache
-    memoryOption: 8g
-
+    ## resources
+    # k8s resource min (request) and max (limit)
+    # min is also used for the target maximum memory used by the cache (NuoDB --mem option)
     resources:
       limits:
         cpu: 4
@@ -316,7 +333,3 @@ database:
 openshift:
   # change this to true if you want to deploy using OpenShift proprietary features
   enabled: false
-  # generally avoid deployment configs, favor deployments, so leave this as false
-  enableDeploymentConfigs: false
-  # if openshift is enabled, then also permit routes by default
-  enableRoutes: true

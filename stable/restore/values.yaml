@@ -14,20 +14,26 @@ cloud:
   #   - us-east-2a
   #   - us-east-2b
   #   - us-east-2c
+  
+  cluster:
+    # cluster name is used to make resources unique in multi-cluster configurations.
+    # If the NuoDB domain spans 2 or more physical clusters, then each cluster must have a unique cluster.name.
+    # The default is fine for single-cluster domains.
+    name: cluster0
 
 busybox:
   image:
     registry: docker.io
     repository: busybox
     tag: latest
-    pullPolicy: Always
+    pullPolicy: IfNotPresent
 
 nuodb:
   image:
     registry: docker.io
     repository: nuodb/nuodb-ce
-    tag: 4.0.3
-    pullPolicy: Always
+    tag: 4.0.5
+    pullPolicy: IfNotPresent
     ## Optionally specify an array of imagePullSecrets.
     ## Secrets must be manually created in the namespace.
     ## ref: https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod

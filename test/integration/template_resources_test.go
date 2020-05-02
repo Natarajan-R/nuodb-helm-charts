@@ -1,6 +1,7 @@
 package integration
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 	"testing"
@@ -143,12 +144,14 @@ func TestResourcesDatabaseDefaults(t *testing.T) {
 		// the memory is confusing Gi with G. We are using power of two (1024). But scaled value is using 1000
 
 		assert.Check(t, (*containers)[0].Resources.Limits.Cpu().ScaledValue(0) == 8)
-		assert.Check(t, (*containers)[0].Resources.Limits.Memory().ScaledValue(resource.Giga) == 18,
-			(*containers)[0].Resources.Limits.Memory().ScaledValue(resource.Giga))
+		assert.Check(t, (*containers)[0].Resources.Limits.Memory().ScaledValue(0) == 16 * 1024 * 1024 * 1024,
+			(*containers)[0].Resources.Limits.Memory().ScaledValue(0))
 
 		assert.Check(t, (*containers)[0].Resources.Requests.Cpu().ScaledValue(0) == 4)
-		assert.Check(t, (*containers)[0].Resources.Requests.Memory().ScaledValue(resource.Giga) == 9,
-			(*containers)[0].Resources.Requests.Memory().ScaledValue(resource.Giga))
+		assert.Check(t, (*containers)[0].Resources.Requests.Memory().ScaledValue(0) == 8 * 1024 * 1024 * 1024,
+			(*containers)[0].Resources.Requests.Memory().ScaledValue(0))
+
+		assert.Check(t, ArgContains((*containers)[0].Args, "mem 8Gi"))
 
 		// make sure the replica counts are correct
 		if testlib.IsStatefulSetHotCopyEnabled(&ss) {
@@ -176,7 +179,7 @@ func TestResourcesDatabaseOverridden(t *testing.T) {
 	options := &helm.Options{
 		SetValues: map[string]string{
 			"database.sm.resources.requests.cpu":    "1",
-			"database.sm.resources.requests.memory": "4G",
+			"database.sm.resources.requests.memory": "4Gi",
 			"database.sm.noHotCopy.replicas":        strconv.Itoa(noHotCopyReplicas),
 			"database.sm.hotCopy.replicas":          strconv.Itoa(hotcopyReplicas),
 		},
@@ -212,12 +215,14 @@ func TestResourcesDatabaseOverridden(t *testing.T) {
 		// the memory is confusing Gi with G. We are using power of two (1024). But scaled value is using 1000
 
 		assert.Check(t, (*containers)[0].Resources.Limits.Cpu().ScaledValue(0) == 8)
-		assert.Check(t, (*containers)[0].Resources.Limits.Memory().ScaledValue(resource.Giga) == 18,
-			(*containers)[0].Resources.Limits.Memory().ScaledValue(resource.Giga))
+		assert.Check(t, (*containers)[0].Resources.Limits.Memory().ScaledValue(0) == 16 * 1024 * 1024 * 1024,
+			(*containers)[0].Resources.Limits.Memory().ScaledValue(0))
 
 		assert.Check(t, (*containers)[0].Resources.Requests.Cpu().ScaledValue(0) == 1)
-		assert.Check(t, (*containers)[0].Resources.Requests.Memory().ScaledValue(resource.Giga) == 4,
-			(*containers)[0].Resources.Requests.Memory().ScaledValue(resource.Giga))
+		assert.Check(t, (*containers)[0].Resources.Requests.Memory().ScaledValue(0) == 4 * 1024 * 1024 * 1024,
+			(*containers)[0].Resources.Requests.Memory().ScaledValue(0))
+
+		assert.Check(t, ArgContains((*containers)[0].Args, "mem 4Gi"))
 
 		// make sure the replica counts are correct
 		if testlib.IsStatefulSetHotCopyEnabled(&ss) {
@@ -629,4 +634,102 @@ func TestDatabaseNoBackupDisabledDaemonSet(t *testing.T) {
 
 	// with daemonSet
 	assert.Equal(t, partCounter, 1)
+}
+
+func assertExpectedLines(t *testing.T, optionsMap *map[string]string, helmChartName string, templateNames []string, expectedLines *map[string]int) {
+	options := &helm.Options{
+		SetValues: *optionsMap,
+	}
+
+	output := helm.RenderTemplate(t, options, "../../stable/"+helmChartName, templateNames)
+	actualLines := make(map[string]int)
+	// iterate through all lines of rendered output, removing any trailing spaces
+	for _, line := range regexp.MustCompile(" *\n").Split(output, -1) {
+		if count, ok := (*expectedLines)[line]; ok {
+			assert.Check(t, count != 0, "Unexpected line: "+line)
+			actualLines[line]++
+		}
+	}
+
+	for line, cnt := range *expectedLines {
+		assert.Equal(t, cnt, actualLines[line], "Unexpected number of occurrences of "+line)
+	}
+}
+
+func TestAddRoleBindingEnabled(t *testing.T) {
+	optionsMap := map[string]string{}
+	templateNames := []string{
+		"templates/role.yaml",
+		"templates/rolebinding.yaml",
+		"templates/serviceaccount.yaml",
+		"templates/statefulset.yaml",
+	}
+	// expect Role, RoleBinding, and ServiceAccount to be created
+	expectedLines := map[string]int{
+		"kind: Role":                      1,
+		"kind: RoleBinding":               1,
+		"kind: ServiceAccount":            1,
+		"      serviceAccountName: nuodb": 1,
+	}
+	assertExpectedLines(t, &optionsMap, "admin", templateNames, &expectedLines)
+}
+
+func TestAddRoleBindingDisabled(t *testing.T) {
+	// disable creation of role and role binding
+	optionsMap := map[string]string{
+		"nuodb.serviceAccount": "default",
+		"nuodb.addRoleBinding": "false",
+	}
+	templateNames := []string{
+		"templates/role.yaml",
+		"templates/rolebinding.yaml",
+		"templates/serviceaccount.yaml",
+		"templates/statefulset.yaml",
+	}
+	expectedLines := map[string]int{
+		"kind: Role":                        0,
+		"kind: RoleBinding":                 0,
+		"kind: ServiceAccount":              1,
+		"      serviceAccountName: default": 1,
+	}
+	assertExpectedLines(t, &optionsMap, "admin", templateNames, &expectedLines)
+}
+
+func TestDeploymentServiceAccount(t *testing.T) {
+	optionsMap := map[string]string{}
+	templateNames := []string{
+		"templates/deployment.yaml",
+	}
+	expectedLines := map[string]int{
+		"      serviceAccountName: nuodb": 1,
+	}
+	assertExpectedLines(t, &optionsMap, "database", templateNames, &expectedLines)
+}
+
+func TestStatefulSetServiceAccount(t *testing.T) {
+	optionsMap := map[string]string{}
+	templateNames := []string{
+		"templates/statefulset.yaml",
+	}
+	// there should be two serviceAccountName declarations, for SM and hotcopy SM
+	expectedLines := map[string]int{
+		"kind: StatefulSet":               2,
+		"      serviceAccountName: nuodb": 2,
+	}
+	assertExpectedLines(t, &optionsMap, "database", templateNames, &expectedLines)
+}
+
+func TestDaemonSetServiceAccount(t *testing.T) {
+	optionsMap := map[string]string{
+		"database.enableDaemonSet": "true",
+	}
+	templateNames := []string{
+		"templates/daemonset.yaml",
+	}
+	// there should be two serviceAccountName declarations, for SM and hotcopy SM
+	expectedLines := map[string]int{
+		"kind: DaemonSet":                 2,
+		"      serviceAccountName: nuodb": 2,
+	}
+	assertExpectedLines(t, &optionsMap, "database", templateNames, &expectedLines)
 }
