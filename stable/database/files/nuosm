@@ -47,7 +47,7 @@ function die() {
 
   retval=$1
   shift
-  [ -n "$wotIdid" ] && echo "$wotIdid"
+  [ -n "$wotIdid" ] && echo "When $wotIdid"
   echo "$@"
   exit $retval
 }
@@ -146,28 +146,28 @@ if [ ! -e "${DB_DIR}" ] ; then
 fi
 
 # ensure the admin layer is intact...
-wotIdid="Checking Admin layer"
+wotIdid="checking Admin layer"
 status="$($NUOCMD check servers --check-leader --timeout 30)"
 retval=$?
 [ $retval = 0 ] || die "(nuosm) Admin layer is inoperative - exiting: $status"
 
 first_req="$NUODB_RESTORE_REQUEST_PREFIX/$DB_NAME/first"
 
-wotIdid="Checking archives"
+wotIdid="checking archive raft metadata"
 myArchive=$( $NUOCMD show archives --db-name $DB_NAME --archive-format "archive-id: {id}" | sed -En "/^archive-id: / {N; /$HOSTNAME/ s/^archive-id: ([0-9]+).*$/\1/; T; p}" | head -n 1 )
 [ -z "$myArchive" ] && myArchive=-1
 [ -n "$NUODB_DEBUG" ] && echo "myArchive=$myArchive; DB=$DB_NAME; hostname=$HOSTNAME"
 [ -n "$NUODB_DEBUG" -a "$myArchive" = "-1" ] && echo "$($NUOCMD show archives --db-name $DB_NAME)"
 
 # if a restore from backup has been requested, then do that now
-wotIdid="Retrieving restore request"
+wotIdid="retrieving restore request from raft"
 restore_req="$NUODB_RESTORE_REQUEST_PREFIX/$DB_NAME/restore"
 restore_requested="$( $NUOCMD get value --key $restore_req )"
 
 wotIdid=""
 
 if [ -n "$restore_requested" ]; then
-  wotIdid="Retrieving restore credentials"
+  wotIdid="retrieving restore credentials from raft"
   credential_req="$NUODB_RESTORE_REQUEST_PREFIX/$DB_NAME/restore/credentials"
   restore_credentials="$( $NUOCMD get value --key $credential_req )"
   [ -z "$restore_credentials" ] && restore_credentials=${DATABASE_RESTORE_CREDENTIALS:-:}
@@ -205,7 +205,7 @@ fi
 if [ "$restore_source" = ":latest" ]; then
 
   # find which backup group performed the latest backup
-  wotIdid="Retrieve :latest from nuobackup"
+  wotIdid="retrieve :latest from nuobackup"
   latest_group=$( nuobackup --type report-latest --db-name $DB_NAME )
 
   # if the latest backup was not by my group, then wait to allow an SM from the latest group to start first
@@ -226,7 +226,7 @@ fi
 # resolve the latest backup for the specified backup group
 if [ "$restore_source" = ":latest" -o "$restore_source" = ":group-latest" ]; then
 
-  wotIdid="Retrieving :group-latest from nuorestore"
+  wotIdid="retrieving :group-latest from nuorestore"
 
   [ -n "$NUODB_DEBUG" ] && echo "Resolving restore '$restore_source'..."
   restore_source=$( nuobackup --type report-latest --db-name $DB_NAME --group $NUODB_BACKUP_GROUP )
@@ -238,7 +238,7 @@ wotIdid=""
 if [ -n "$restore_requested" -a -n "$restore_source" ]; then
 
   # work out who is the first one in
-  wotIdid="Trying to reserve first-in"
+  wotIdid="trying to reserve first-in"
   $NUOCMD set value --key $first_req --value $HOSTNAME --expected-value ''
   first_in="$( $NUOCMD get value --key $first_req )"
 
@@ -269,13 +269,13 @@ if [ -n "$restore_requested" -a -n "$restore_source" ]; then
     done
 
     # and restore the data
-    wotIdid="Perform restore"
+    wotIdid="performing restore"
     perform_restore
 
     # clear/release shared state
     # $NUOCMD set value --key $first_req --value '' --expected-value $HOSTNAME
     # $NUOCMD set value --key $restore_req --value '' --expected-value $restore_requested
-    wotIdid="Clear restore credential request"
+    wotIdid="clearing restore credential request from raft"
     $NUOCMD set value --key $credential_req --value '' --unconditional
 
 
@@ -285,7 +285,7 @@ if [ -n "$restore_requested" -a -n "$restore_source" ]; then
   else
     # attempt to restore the same backup that the initial SM is restoring - to reduce SYNC time
 
-    wotIdid="Attempt to restore same backup as master to SM to secondary SM"
+    wotIdid="attempting to restore same backup as master SM to secondary SM"
 
     if [ -n "$( echo $restore_source | grep '^[a-z]\+:/[^ ]\+')" -o -d $NUODB_BACKUPDIR/$restore_source ]; then
       perform_restore
@@ -296,7 +296,7 @@ if [ -n "$restore_requested" -a -n "$restore_source" ]; then
   fi
 
   # wait until it's my turn to startup
-  wotIdid="Wait until it's my turn to start up"
+  wotIdid="waiting until it's my turn to start up"
   retry=0
   until owner=$( $NUOCMD get value --key $startup_key/$DB_NAME ); [ "$owner" = "$HOSTNAME" -o "$NUODB_SEQUENCE_SYNC" = "false" ] ; do
 
@@ -320,12 +320,12 @@ if [ -n "$restore_requested" -a -n "$restore_source" ]; then
   done
 
   # call nuodocker to fix the archive metadata
-  wotIdid="Clear physical archive metadata"
+  wotIdid="clearing physical archive metadata"
   nuodocker --api-server $NUOCMD_API_SERVER restore archive --origin-dir $DB_DIR --restore-dir $DB_DIR --db-name $DB_NAME --clean-metadata
 
   # completely delete my previous archive metadata
   # this is required because nuodocker always creates a new archive
-  wotIdid="Completely delete the raft metadata for my archive"
+  wotIdid="completely deleting the raft metadata for my archive"
   [ $myArchive -ge 0 ] && $NUOCMD delete archive --archive-id $myArchive --purge
 
 fi
@@ -339,7 +339,7 @@ locked_archive=$( $NUOCMD show archives --db-name $DB_NAME --removed --removed-a
 # if a RESTORE_SOURCE is defined, and the archive dir is empty, then import/restore from the URL
 if [ -n "$restore_source" -a -z "$restore_requested" -a ! -f $DB_DIR/1.atm ]; then
 
-  wotIdid="Restore empty archive"
+  wotIdid="restoring empty archive"
 
   # if the RESTORE_SOURCE has a protocol:/ prefix, then use curl to download the archive
   if [ -n "$( echo $restore_source | grep '^[a-z]\+:/[^ ]\+')" ]; then
@@ -356,7 +356,7 @@ if [ -n "$restore_source" -a -z "$restore_requested" -a ! -f $DB_DIR/1.atm ]; th
     fi
     
     # download the source
-    wotIdid="Download the backup"
+    wotIdid="downloading the backup"
     echo "curl -k --user '**' $restore_source | tar xzf - --strip-components $strip_levels -C $auto_download_dir"
     curl -k --user "$restore_credentials" $restore_source | tar xzf - --strip-components $strip_levels -C $auto_download_dir
 
@@ -365,7 +365,7 @@ if [ -n "$restore_source" -a -z "$restore_requested" -a ! -f $DB_DIR/1.atm ]; th
     [ -n "$NUODB_DEBUG" ] && ls -l $DB_DIR
     
     # restore and/or fix the metadata
-    wotIdid="Clear restored archive physical metadata"
+    wotIdid="clearing restored archive physical metadata"
     nuodocker --api-server $NUOCMD_API_SERVER restore archive --origin-dir $auto_download_dir --restore-dir $DB_DIR --db-name $DB_NAME --clean-metadata
     
     if [ "$auto_download_dir" != "$DB_DIR" ]; then
@@ -378,20 +378,20 @@ if [ -n "$restore_source" -a -z "$restore_requested" -a ! -f $DB_DIR/1.atm ]; th
     set -- --restore-from-dir "$NUODB_BACKUPDIR/$restore_source" "$@"
   fi
   # completely delete my previous archive metadata
-  wotIdid="Completely delete raft metadata for my archive"
+  wotIdid="completely deleting raft metadata for my archive"
   [ $myArchive -ge 0 ] && $NUOCMD delete archive --archive-id $myArchive --purge
 fi
 
 # release the first-in semaphore
-wotIdid="Release first-in semaphore"
+wotIdid="releasing first-in semaphore"
 [ -n "$first_in" ] && $NUOCMD set value --key $first_req --value '' --expected-value $HOSTNAME
 
 # clear the restore_request
-wotIdid="Clear retore request"
+wotIdid="clearing retore request"
 [ -n "$restore_requested" ] && $NUOCMD set value --key $restore_req --value '' --expected-value "$restore_requested"
 
 # expects NUOCMD_API_SERVER to be set.
-wotIdid="execute nuodocker to start SM"
+wotIdid="executing nuodocker to start SM"
 if [ -n "${NUODB_OPTIONS}" ] ; then
     exec nuodocker start sm --archive-dir "${DB_DIR}" --dba-user "${DB_USER}" --dba-password "${DB_PASSWORD}" --db-name "${DB_NAME}" --options "${NUODB_OPTIONS}" "$@"
 else
