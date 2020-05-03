@@ -149,7 +149,7 @@ fi
 wotIdid="checking Admin layer"
 status="$($NUOCMD check servers --check-leader --timeout 30)"
 retval=$?
-[ $retval = 0 ] || die "(nuosm) Admin layer is inoperative - exiting: $status"
+[ $retval -ne 0 ] && die "(nuosm) Admin layer is inoperative - exiting: $status"
 
 first_req="$NUODB_RESTORE_REQUEST_PREFIX/$DB_NAME/first"
 
