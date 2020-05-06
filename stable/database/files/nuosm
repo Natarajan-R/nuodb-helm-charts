@@ -5,7 +5,7 @@
 . ${NUODB_HOME}/etc/nuodb_setup.sh
 
 NUODB_DEBUG="false"
-#[ -n "$NUODB_DEBUG" ] && set -x
+[ "$NUODB_DEBUG" = "true" ] && set -x
 
 : ${NUODB_ARCHIVEDIR:=/var/opt/nuodb/archive}
 : ${NUODB_BACKUPDIR:=/var/opt/nuodb/backup}
@@ -155,7 +155,7 @@ function perform_restore() {
 
   # make sure the archive is correct for this database
   restoredName="$($NUODB_BINDIR/nuodb --show-archive-history --archive $DB_DIR | sed 's;[<]Arg[>]--database[<]/Arg[>][^<]*[<]Arg[>]([^<]+)[<]/Arg[>];\1;' )"
-  if [ "$restoredName" -ne "$DB_NAME" ]; then
+  if [ "$restoredName" != "$DB_NAME" ]; then
     $undo
     error="Restore: incorrect backup specified. Database name is $DB_NAME but archive is for $restoredName"
     return -1
@@ -231,8 +231,8 @@ if [ "$myArchive" != "-1" ]; then
 
   # if a restore has been requested, then do that
   if [ -n "$restore_requested" ]; then
-    restore_source=$(restore_requested | sed -r 's;^stream:(.+)$;\1;')
-    [ "$restore_source" -ne "$restore_requested" ] && restore_type="stream"
+    restore_source=$(echo $restore_requested | sed -r 's;^stream:(.+)$;\1;')
+    [ "$restore_source" != "$restore_requested" ] && restore_type="stream"
 
     [ -n "$NUODB_DEBUG" ] && echo "restore requested: $restore_source"
 
@@ -316,7 +316,7 @@ if [ -n "$restore_requested" -a -n "$restore_source" ]; then
 
     # delete all archives but my own
     for archv in $archive_ids; do
-      [ "$archv" -ne "$myArchive" ] && $NUOCMD delete archive --archive-id $archv
+      [ "$archv" != "$myArchive" ] && $NUOCMD delete archive --archive-id $archv
     done
 
     # and restore the data
