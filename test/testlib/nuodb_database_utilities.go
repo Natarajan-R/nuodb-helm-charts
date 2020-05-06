@@ -10,7 +10,6 @@ import (
 	"github.com/gruntwork-io/terratest/modules/helm"
 	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/gruntwork-io/terratest/modules/random"
-	corev1 "k8s.io/api/core/v1"
 )
 
 type ExtractedOptions struct {
@@ -62,6 +61,14 @@ func EnsureDatabaseNotRunning(t *testing.T, adminPod string, opt ExtractedOption
 	k8s.RunKubectl(t, kubectlOptions, "exec", adminPod, "--", "nuocmd", "check", "database", "--db-name", opt.DbName, "--num-processes", "0", "--timeout", "30")
 }
 
+func RestartDatabaseWithOptions(t *testing.T, namespaceName string, adminPod string, helmChartReleaseName string, options *helm.Options) {
+	opt := GetExtractedOptions(options)
+
+	AwaitDatabaseRestart(t, namespaceName, adminPod, opt.DbName, options, func() {
+		helm.Upgrade(t, options, DATABASE_HELM_CHART_PATH, helmChartReleaseName)
+	})
+}
+
 func StartDatabase(t *testing.T, namespaceName string, adminPod string, options *helm.Options) (helmChartReleaseName string) {
 	randomSuffix := strings.ToLower(random.UniqueId())
 
@@ -94,11 +101,11 @@ func StartDatabase(t *testing.T, namespaceName string, adminPod string, options 
 
 	tePodName := GetPodName(t, namespaceName, tePodNameTemplate)
 	AddTeardown(TEARDOWN_DATABASE, func() { GetAppLog(t, namespaceName, GetPodName(t, namespaceName, tePodNameTemplate), "") })
-	AwaitPodStatus(t, namespaceName, tePodName, corev1.PodReady, corev1.ConditionTrue, 180*time.Second)
+	AwaitPodUp(t, namespaceName, tePodName, 180*time.Second)
 
 	smPodName0 := GetPodName(t, namespaceName, smPodName)
 	AddTeardown(TEARDOWN_DATABASE, func() { GetAppLog(t, namespaceName, GetPodName(t, namespaceName, smPodName), "") })
-	AwaitPodStatus(t, namespaceName, smPodName0, corev1.PodReady, corev1.ConditionTrue, 240*time.Second)
+	AwaitPodUp(t, namespaceName, smPodName0, 240*time.Second)
 
 	AwaitDatabaseUp(t, namespaceName, adminPod, opt.DbName, opt.NrSmPods+opt.NrTePods)
 

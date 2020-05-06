@@ -450,7 +450,7 @@ func AwaitPodRestartCountGreaterThan(t *testing.T, namespace string, podName str
 		}
 
 		return restartCount > expectedRestartCount
-	}, 30*time.Second)
+	}, 100*time.Second)
 }
 
 func VerifyPolicyInstalled(t *testing.T, namespace string, podName string) {

@@ -4,32 +4,15 @@ package minikube
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
 	"github.com/gruntwork-io/terratest/modules/helm"
-	"github.com/gruntwork-io/terratest/modules/k8s"
 	"github.com/nuodb/nuodb-helm-charts/test/testlib"
-	"gotest.tools/assert"
 )
 
 const OLD_RELEASE = "4.0"
 const NEW_RELEASE = "4.0.5"
-
-func verifyAllProcessesRunning(t *testing.T, namespaceName string, adminPod string, expectedNrProcesses int) {
-	testlib.Await(t, func() bool {
-		options := k8s.NewKubectlOptions("", "")
-		options.Namespace = namespaceName
-
-		output, err := k8s.RunKubectlAndGetOutputE(t, options, "exec", adminPod, "--", "nuocmd", "show", "domain")
-		assert.NilError(t, err, "verifyAllProcessesRunning: running show domain failed")
-
-		return strings.Count(output, "MONITORED:RUNNING") == expectedNrProcesses
-	}, 30*time.Second)
-}
-
-
 
 func TestKubernetesUpgradeAdminMinorVersion(t *testing.T) {
 	testlib.AwaitTillerUp(t)
