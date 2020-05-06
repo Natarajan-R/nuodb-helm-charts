@@ -124,7 +124,7 @@ function perform_restore() {
       # It is a backupset so switch the download to somewhere temporary available on all SMs (it will be removed later)
       # This will also run if TYPE is unrecognised, since it works for either type, but will be less efficient.
       download_dir=$(basename $restore_source)
-      download_dir="${NUODB_ARCHIVEDIR}/${NUODB_DOMAIN}/$(basename $download_dir .${download_dir#*.})-downloaded"
+      download_dir="${DB_PARENTDIR}/$(basename $download_dir .${download_dir#*.})-downloaded"
       mkdir $download_dir
     fi
 
@@ -154,7 +154,7 @@ function perform_restore() {
   fi
 
   # make sure the archive is correct for this database
-  restoredName=$($NUODB_BINDIR/nuodb --show-archive-history --archive $DB_DIR | sed "s;[<]Arg[>]--database[<]/Arg[>][^<]*[<]Arg[>]([^<]+)[<]/Arg[>];\1;" )
+  restoredName="$($NUODB_BINDIR/nuodb --show-archive-history --archive $DB_DIR | sed 's;[<]Arg[>]--database[<]/Arg[>][^<]*[<]Arg[>]([^<]+)[<]/Arg[>];\1;' )"
   if [ "$restoredName" -ne "$DB_NAME" ]; then
     $undo
     error="Restore: incorrect backup specified. Database name is $DB_NAME but archive is for $restoredName"
@@ -231,7 +231,9 @@ if [ "$myArchive" != "-1" ]; then
 
   # if a restore has been requested, then do that
   if [ -n "$restore_requested" ]; then
-    restore_source=$restore_requested
+    restore_source=$(restore_requested | sed -r 's;^stream:(.+)$;\1;')
+    [ "$restore_source" -ne "$restore_requested" ] && restore_type="stream"
+
     [ -n "$NUODB_DEBUG" ] && echo "restore requested: $restore_source"
 
   # else if the database is configured with an AUTO_RESTORE, then specify that
@@ -431,7 +433,7 @@ if [ -n "$restore_source" -a -z "$restore_requested" -a ! -f $DB_DIR/1.atm ]; th
   # elif [ -d "$NUODB_BACKUPDIR/$restore_source" ]; then
   #   # NUODB_IMPORT_URL has no protocol - so just append the --restore-from-dir option
   #   set -- --restore-from-dir "$NUODB_BACKUPDIR/$restore_source" "$@"
-  # fi
+  fi
 
   # completely delete my previous archive metadata
   wotIdid="completely deleting raft metadata for my archive"
