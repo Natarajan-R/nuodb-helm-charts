@@ -156,11 +156,11 @@ function perform_restore() {
   fi
 
   # make sure the archive is correct for this database
-  restoredName="$($NUODB_BINDIR/nuodb --show-archive-history --archive $DB_DIR | sed -r 's;[<]Arg[>]--database[<]/Arg[>][^<]*[<]Arg[>]([^<]+)[<]/Arg[>];\1;' )"
+  restoredName="$($NUODB_BINDIR/nuodb --show-archive-history --archive $DB_DIR | sed -r 's;.+[<]Arg[>]--database[<]/Arg[>][^<]*[<]Arg[>]([^<]+)[<]/Arg[>].+;\1;' )"
   if [ "$restoredName" != "$DB_NAME" ]; then
     $undo
     error="Restore: incorrect backup specified. Database name is $DB_NAME but archive is for $restoredName"
-    return -1
+    return 1
   fi
 
   [ -n "$NUODB_DEBUG" ] && ls -l $DB_DIR
@@ -174,7 +174,7 @@ function perform_restore() {
     # if [ "$restoredID" -ne "$datbaseID" ]; then
     #   $undo
     #   error="Restore: incorrect backup specified. Database UUID is $databaseID but archive is for $restoredID"
-    #   return -1
+    #   return 1
     # fi
   # fi
 
