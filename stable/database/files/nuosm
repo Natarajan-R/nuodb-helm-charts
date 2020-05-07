@@ -4,8 +4,10 @@
 
 . ${NUODB_HOME}/etc/nuodb_setup.sh
 
-NUODB_DEBUG="false"
+NUODB_DEBUG="true"
 [ "$NUODB_DEBUG" = "true" ] && set -x
+
+[ "$NUOSM_VALIDATE" = "true" ] && set -e
 
 : ${NUODB_ARCHIVEDIR:=/var/opt/nuodb/archive}
 : ${NUODB_BACKUPDIR:=/var/opt/nuodb/backup}
@@ -154,7 +156,7 @@ function perform_restore() {
   fi
 
   # make sure the archive is correct for this database
-  restoredName="$($NUODB_BINDIR/nuodb --show-archive-history --archive $DB_DIR | sed 's;[<]Arg[>]--database[<]/Arg[>][^<]*[<]Arg[>]([^<]+)[<]/Arg[>];\1;' )"
+  restoredName="$($NUODB_BINDIR/nuodb --show-archive-history --archive $DB_DIR | sed -r 's;[<]Arg[>]--database[<]/Arg[>][^<]*[<]Arg[>]([^<]+)[<]/Arg[>];\1;' )"
   if [ "$restoredName" != "$DB_NAME" ]; then
     $undo
     error="Restore: incorrect backup specified. Database name is $DB_NAME but archive is for $restoredName"
