@@ -4,7 +4,7 @@
 
 . ${NUODB_HOME}/etc/nuodb_setup.sh
 
-NUODB_DEBUG="true"
+: ${NUODB_DEBUG:="false"}
 [ "$NUODB_DEBUG" = "true" ] && set -x
 
 [ "$NUOSM_VALIDATE" = "true" ] && set -e
@@ -15,6 +15,10 @@ NUODB_DEBUG="true"
 : ${NUODB_SEQUENCE_SYNC:=true}
 
 : ${NUODB_IMPORT_CREDENTIALS:=:}
+
+ERR_BACKUPSET_NOT_FOUND=70
+ERR_NO_SPACE=71
+ERR_INCORRECT_BACKUP=72
 
 startup_key="/nuodb/nuosm/startup"
 
@@ -67,7 +71,7 @@ function perform_restore() {
   # bail out early if the restore will obviously fail
   if [ -z "$( echo $restore_source | grep '^[a-z]\+:/[^ ]\+')" ] && [ ! -d "$NUODB_BACKUPDIR/$restore_source" ]; then
       error="Backupset $restore_source cannot be found in $NUODB_BACKUPDIR"
-      retval=-1
+      retval=$ERR_BACKUPSET_NOT_FOUND
       return $retval
   fi
 
@@ -100,7 +104,7 @@ function perform_restore() {
     archSpace="$(df --output=avail $DB_DIR | grep -o ' *[0-9]\+')"
     if [ $(( archSize + 1024000 > archSpace )) ]; then
       rm -rf $tarfile
-      retval=-1
+      retval=$ERR_NO_SPACE
       error="Insufficient space for restore after archive has been saved to TAR."
       return $retval
     fi
@@ -160,7 +164,8 @@ function perform_restore() {
   if [ "$restoredName" != "$DB_NAME" ]; then
     $undo
     error="Restore: incorrect backup specified. Database name is $DB_NAME but archive is for $restoredName"
-    return 1
+    retval=$ERR_INCORRECT_BACKUP
+    return $retval
   fi
 
   [ -n "$NUODB_DEBUG" ] && ls -l $DB_DIR
@@ -174,7 +179,8 @@ function perform_restore() {
     # if [ "$restoredID" -ne "$datbaseID" ]; then
     #   $undo
     #   error="Restore: incorrect backup specified. Database UUID is $databaseID but archive is for $restoredID"
-    #   return 1
+    #   retval=$ERR_INCORRECT_BACKUP
+    #   return $retval
     # fi
   # fi
 
