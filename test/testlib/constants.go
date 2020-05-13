@@ -35,6 +35,10 @@ const RESULT_DIR = "../../results"
 const INJECT_FILE = "../../versionInject.yaml"
 
 const IMPORT_ARCHIVE_URL = "https://download.nuohub.org/ce_releases/restore.bak.tz"
+// const RESTORE_EMPTYARCHIVE_URL = "https://download.nuohub.org/ce_releases/empty.bak.tz"
+// const RESTORE_ARCHIVE2_URL = "https://download.nuohub.org/ce_releases/restore2.bak.tz"
+const RESTORE_EMPTYARCHIVE_URL = "https://download.nuohub.org/ce_releases/empty.bak.tz"
+const RESTORE_ARCHIVE2_URL = "https://download.nuohub.org/ce_releases/restore2.bak.tz"
 
 // suffix "m" for spec.containers[].resources.requests.cpu denotes "millicores",
 // and 1 CPU is equivalent to 1000m
@@ -42,3 +46,15 @@ const MINIMAL_VIABLE_ENGINE_CPU = "500m"
 const MINIMAL_VIABLE_ENGINE_MEMORY = "500Mi"
 
 const K8S_EVENT_LOG_FILE = "kubernetes_event.log"
+
+// Ok-Ko enum
+type OkKo int
+
+const (
+	Pass OkKo = iota
+	Fail
+)
+
+func (i OkKo) String() string {
+	return [...]string{"Pass", "Fail"}[i]
+}

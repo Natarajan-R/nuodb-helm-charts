@@ -424,6 +424,18 @@ func GetDatabaseIncarnation(t *testing.T, namespace string, podName string, data
 	return nil
 }
 
+func GetRestartCount(t *testing.T, podName string, options *k8s.KubectlOptions) int32 {
+	pod := k8s.GetPod(t, options, podName)
+
+	var restartCount int32
+	for _, status := range pod.Status.ContainerStatuses {
+		restartCount += status.RestartCount
+	}
+
+	return restartCount
+}
+
+// TODO remove databaseNae param - and retrieve it from extracted databaseOptions
 func AwaitDatabaseRestart(t *testing.T, namespace string, podName string, databaseName string, databaseOptions *helm.Options, restart func()) {
 	incarnation := GetDatabaseIncarnation(t, namespace, podName, databaseName)
 
@@ -437,19 +449,27 @@ func AwaitDatabaseRestart(t *testing.T, namespace string, podName string, databa
 	AwaitDatabaseUp(t, namespace, podName, databaseName, opts.NrTePods+opts.NrSmPods)
 }
 
+func AwaitProcessRestart(t *testing.T, namespace string, podName string, restart func()) {
+	options := k8s.NewKubectlOptions("", "")
+	options.Namespace = namespace
+	expectedRestartCount := GetRestartCount(t, podName, options)
+
+	restart()
+
+	AwaitPodRestartCountGreaterThan(t, namespace, podName, expectedRestartCount)
+}
+
+func VerifyProcessRestartFails(t *testing.T, namespace string, podName string, restart func()) {
+	restart()
+	AwaitPodPhase(t, namespace, podName, corev1.PodFailed, 30*time.Second)
+}
+
 func AwaitPodRestartCountGreaterThan(t *testing.T, namespace string, podName string, expectedRestartCount int32) {
 	options := k8s.NewKubectlOptions("", "")
 	options.Namespace = namespace
 
 	Await(t, func() bool {
-		pod := k8s.GetPod(t, options, podName)
-
-		var restartCount int32
-		for _, status := range pod.Status.ContainerStatuses {
-			restartCount += status.RestartCount
-		}
-
-		return restartCount > expectedRestartCount
+		return GetRestartCount(t, podName, options) > expectedRestartCount
 	}, 30*time.Second)
 }
 
