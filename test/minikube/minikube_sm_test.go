@@ -24,6 +24,7 @@ import (
 )
 
 func TestKubernetesStartSM(t *testing.T) {
+	t.Skip()
 	testlib.AwaitTillerUp(t)
 	defer testlib.VerifyTeardown(t)
 
@@ -44,14 +45,29 @@ func TestKubernetesStartSM(t *testing.T) {
 				"database.te.resources.requests.memory": testlib.MINIMAL_VIABLE_ENGINE_MEMORY,
 				"backup.persistence.enabled":            "true",
 				"backup.persistence.size":               "1Gi",
+				"database.env[0].name":                  "NUODB_DEBUG",
+				"database.env[0].value":                 "debug",
 			},
 		}
 
 		databaseChartName := testlib.StartDatabase(t, namespaceName, admin0, &databaseOptions)
 
+		fmt.Println("startDatabase returned...")
+
 		opt := testlib.GetExtractedOptions(&databaseOptions)
 		smPodTemplate := fmt.Sprintf("sm-%s-nuodb-%s-%s", databaseChartName, opt.ClusterName, opt.DbName)
 		sm0 := testlib.GetPodName(t, namespaceName, smPodTemplate)
+
+		fmt.Println("extracted databaseOptions; sm name is ", sm0)
+
+		kubectlOptions := k8s.NewKubectlOptions("", "")
+		kubectlOptions.Namespace = namespaceName
+
+		defer func() {
+			status, _ := k8s.RunKubectlAndGetOutputE(t, kubectlOptions, "exec", admin0, "--", "nuocmd", "show", "database", "--db-name", opt.DbName)
+			fmt.Println("database status", status)
+		}()
+		fmt.Println("defer func set")
 
 		t.Run("verifyRestore", func(t *testing.T) { verifyRestorePasses(t, namespaceName, sm0, "archive", ":latest") })
 		t.Run("verifyNonexstentRestore", func(t *testing.T) { verifyRestoreFails(t, namespaceName, sm0, "archive", "urgle-furgle") })
@@ -129,73 +145,96 @@ func TestKubernetesRestartSM(t *testing.T) {
 				"backup.persistence.enabled":            "true",
 				"backup.persistence.size":               "1Gi",
 				"database.autoRestore.source":           ":latest",
+				"database.env[0].name":                  "NUODB_DEBUG",
+				"database.env[0].value":                 "std",
 			},
 		}
 
 		databaseChartName := testlib.StartDatabase(t, namespaceName, admin0, &databaseOptions)
 
+		fmt.Println("startDatabase returned...")
+
 		opt := testlib.GetExtractedOptions(&databaseOptions)
 		smPodTemplate := fmt.Sprintf("sm-%s-nuodb-%s-%s", databaseChartName, opt.ClusterName, opt.DbName)
 		sm0 := testlib.GetPodName(t, namespaceName, smPodTemplate)
+
+		fmt.Println("Extracted databaseOptions; sm name is ", sm0)
 
 		kubectlOptions := k8s.NewKubectlOptions("", "")
 		kubectlOptions.Namespace = namespaceName
 
+		testlib.AddDebugTeardown(testlib.TEARDOWN_DATABASE,
+			func() {
+				testlib.GetFile(t, namespaceName, sm0, "/var/log/nuodb", "nuosm.log")
+				// time.Sleep(1 * time.Hour)
+			},
+		)
+
 		restart := func() {
 			status, _ := k8s.RunKubectlAndGetOutputE(t, kubectlOptions, "exec", admin0, "--", "nuocmd", "show", "database", "--db-name", opt.DbName)
-			fmt.Println("database status", status)
+			fmt.Println("database status on ENTRANCE", status)
 
-			k8s.RunKubectl(t, kubectlOptions, "exec", sm0, "--", "rm", "-rf", "/var/opt/nuodb/archive/nuodb/demo")
-			testlib.RunSQL(t, namespaceName, admin0, "demo", "select 1 from dual")
+			k8s.RunKubectl(t, kubectlOptions, "exec", sm0, "--", "mv", "/var/opt/nuodb/archive/nuodb/demo", "/var/opt/nuodb/archive/nuodb/demo.dead")
+			status, _ = k8s.RunKubectlAndGetOutputE(t, kubectlOptions, "exec", sm0, "--", "ls", "-l", "/var/opt/nuodb/archive/nuodb/")
+			t.Log("after archive delete: ", status)
+
+			result, _ := testlib.RunSQL(t, namespaceName, admin0, "demo", "create table user.newtable (id bigint)")
+			t.Log(result)
 		}
 
 		defer func() {
 			status, _ := k8s.RunKubectlAndGetOutputE(t, kubectlOptions, "exec", admin0, "--", "nuocmd", "show", "database", "--db-name", opt.DbName)
-			fmt.Println("database status", status)
+			fmt.Println("database status on EXIT", status)
 		}()
+		fmt.Println("defer func set")
 
 		t.Run("verifyRestartOnLostArchive", func(t *testing.T) {
 			testlib.AwaitDatabaseRestart(t, namespaceName, admin0, "demo", &databaseOptions, restart)
+
+			status, _ := k8s.RunKubectlAndGetOutputE(t, kubectlOptions, "exec", sm0, "--", "ls", "-l", "/var/opt/nuodb/archive/nuodb/demo")
+			t.Log("after archive delete: ", status)
 		})
 	})
 
-	t.Run("startDatabaseDaemonSet", func(t *testing.T) {
-		defer testlib.Teardown(testlib.TEARDOWN_DATABASE)
-		databaseOptions := helm.Options{
-			SetValues: map[string]string{
-				"database.sm.resources.requests.cpu":    testlib.MINIMAL_VIABLE_ENGINE_CPU,
-				"database.sm.resources.requests.memory": testlib.MINIMAL_VIABLE_ENGINE_MEMORY,
-				"database.te.resources.requests.cpu":    testlib.MINIMAL_VIABLE_ENGINE_CPU,
-				"database.te.resources.requests.memory": testlib.MINIMAL_VIABLE_ENGINE_MEMORY,
-				"backup.persistence.enabled":            "true",
-				"backup.persistence.size":               "1Gi",
-				"database.enableDaemonSet":              "true",
-				// prevent non-backup SM from scheduling
-				"database.sm.nodeSelectorNoHotCopyDS.nonexistantTag": "required",
-				"database.autoRestore.source":                        ":latest",
-			},
-		}
+	/*
+		t.Run("startDatabaseDaemonSet", func(t *testing.T) {
+			defer testlib.Teardown(testlib.TEARDOWN_DATABASE)
+			databaseOptions := helm.Options{
+				SetValues: map[string]string{
+					"database.sm.resources.requests.cpu":    testlib.MINIMAL_VIABLE_ENGINE_CPU,
+					"database.sm.resources.requests.memory": testlib.MINIMAL_VIABLE_ENGINE_MEMORY,
+					"database.te.resources.requests.cpu":    testlib.MINIMAL_VIABLE_ENGINE_CPU,
+					"database.te.resources.requests.memory": testlib.MINIMAL_VIABLE_ENGINE_MEMORY,
+					"backup.persistence.enabled":            "true",
+					"backup.persistence.size":               "1Gi",
+					"database.enableDaemonSet":              "true",
+					// prevent non-backup SM from scheduling
+					"database.sm.nodeSelectorNoHotCopyDS.nonexistantTag": "required",
+					"database.autoRestore.source":                        ":latest",
+				},
+			}
 
-		testlib.StartDatabase(t, namespaceName, admin0, &databaseOptions)
+			testlib.StartDatabase(t, namespaceName, admin0, &databaseOptions)
 
-		databaseChartName := testlib.StartDatabase(t, namespaceName, admin0, &databaseOptions)
+			databaseChartName := testlib.StartDatabase(t, namespaceName, admin0, &databaseOptions)
 
-		opt := testlib.GetExtractedOptions(&databaseOptions)
-		smPodTemplate := fmt.Sprintf("sm-%s-nuodb-%s-%s", databaseChartName, opt.ClusterName, opt.DbName)
-		sm0 := testlib.GetPodName(t, namespaceName, smPodTemplate)
+			opt := testlib.GetExtractedOptions(&databaseOptions)
+			smPodTemplate := fmt.Sprintf("sm-%s-nuodb-%s-%s", databaseChartName, opt.ClusterName, opt.DbName)
+			sm0 := testlib.GetPodName(t, namespaceName, smPodTemplate)
 
-		restart := func() {
-			kubectlOptions := k8s.NewKubectlOptions("", "")
-			kubectlOptions.Namespace = namespaceName
+			restart := func() {
+				kubectlOptions := k8s.NewKubectlOptions("", "")
+				kubectlOptions.Namespace = namespaceName
 
-			k8s.RunKubectl(t, kubectlOptions, "exec", sm0, "--", "rm", "-rf", "/var/opt/nuodb/archive/nuodb/demo")
-			testlib.RunSQL(t, namespaceName, admin0, "demo", "select 1 from dual")
-		}
+				k8s.RunKubectl(t, kubectlOptions, "exec", sm0, "--", "rm", "-rf", "/var/opt/nuodb/archive/nuodb/demo")
+				testlib.RunSQL(t, namespaceName, admin0, "demo", "select 1 from dual")
+			}
 
-		t.Run("verifyRestartOnLostArchive", func(t *testing.T) {
-			testlib.AwaitDatabaseRestart(t, namespaceName, admin0, "demo", &databaseOptions, restart)
+			t.Run("verifyRestartOnLostArchive", func(t *testing.T) {
+				testlib.AwaitDatabaseRestart(t, namespaceName, admin0, "demo", &databaseOptions, restart)
+			})
 		})
-	})
+	*/
 
 }
 

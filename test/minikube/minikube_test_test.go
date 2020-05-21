@@ -89,6 +89,27 @@ func TestNamedTeardown(t *testing.T) {
 	testlib.VerifyTeardown(t)
 }
 
+/* verify that a DebugTeardown is *always* executed *before* any other teardown for the same name */
+func TestDebugTeardown(t *testing.T) {
+	tdcounter := 0
+
+	testlib.AddDebugTeardown("name", func() {
+		tdcounter++
+		assert.Check(t, tdcounter == 1)
+	})
+
+	testlib.AddTeardown("name", func() {
+		tdcounter++
+		assert.Check(t, tdcounter == 2)
+	})
+
+	testlib.Teardown("name")
+
+	assert.Check(t, tdcounter == 2)
+
+	testlib.VerifyTeardown(t)
+}
+
 func TestGetExtractedOptions(t *testing.T) {
 
 	t.Run("emptyOptions", func(t *testing.T) {

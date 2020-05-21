@@ -26,20 +26,57 @@ import (
 )
 
 var teardownLists = make(map[string][]func())
+var debugTeardownLists = make(map[string][]func())
 
 /**
- * add a teardown function to the named list - for later execution
+ * add a teardown function to the named list - for deferred execution.
+ * The teardown functions are called in reverse order of insertion, by a call to Teardown(name).
+ *
+ * The typical idiom is:
+ * <pre>
+ *   testlib.AddTeardown("DATABASE", func() { ...})
+ *   // possibly more testlib.AddTeardown("DATABASE", func() { ... })
+ *   defer testlib.Teardown("DATABASE")
+ * <pre>
  */
 func AddTeardown(name string, teardownFunc func()) {
 	teardownLists[name] = append(teardownLists[name], teardownFunc)
 }
 
 /**
+ * add a debug teardown func to be called before any other teardowns in the named list - to aid debugging.
+ * This allows a DEBUG teardown to do such things as:
+ * <ul>
+ *   <li>Generate logging and debug information immediately prior to resurce teardown
+ *   <li>call time.Sleep() to allow inspection and/or debugging of the final state befire teardown.
+ * <ul>
+ *
+ * NOTE: it is generally undesirable to add multiple debug teardowns that sleep - so it would usually be best to
+ * add any Sleep() debug teardown to the innermost teardown list.
+ * Nonetheless, there are use-cases where multiple Sleep() teardowns are useful - to allow inspecting different
+ * intermediate states.
+ */
+func AddDebugTeardown(name string, teardownFunc func()) {
+	debugTeardownLists[name] = append(debugTeardownLists[name], teardownFunc)
+}
+
+/**
  * Call the stored teardown functions in the named list, in the correct order (last-in-first-out)
+ *
+ * NOTE: Any DEBUG teardowns - those added with AddDebugTeardown() for this name - are called BEFORE any other teardowns for that name.
+ *
+ * The typical use of Teardown is with a deferred call:
+ * defer testlib.Teardown("SOME NAME")
+ * See: testlib.AddTeardown()
  */
 func Teardown(name string) {
+
+	// ensure both list and debug list are removed.
+	defer func() { delete(debugTeardownLists, name) }()
+	defer func() { delete(teardownLists, name) }()
+
 	list := teardownLists[name]
-	delete(teardownLists, name)
+	list = append(list, debugTeardownLists[name]...) // append any debug funcs - so they are called FIRST
 
 	for x := len(list) - 1; x >= 0; x-- {
 		list[x]()
@@ -47,28 +84,37 @@ func Teardown(name string) {
 }
 
 /**
-* Verify all teardownLists have been executed already; and throw an ASSERT if not.
-* Can be used to verify correct codng of a test that uses teardown.
-*
-* NOTE: while the funcs are called in the correct order for each list, there can be
-* NO guarantee that the lists are iterated in the correct order.
-*
-* This function MUST NOT be used as a replacement for calling teardown() at the correct point in the code.
+ * Verify all teardownLists have been executed already; and throw an ASSERT if not.
+ * Can be used to verify correct coding of a test that uses teardown - and to ensure eventual resource release.
+ *
+ * NOTE: while the funcs are called in the correct order for each list,
+ * there can be NO guarantee that the lists are iterated in the correct order.
+ *
+ * This function MUST NOT be used as a replacement for calling Teardown() at the correct point in the code.
  */
 func VerifyTeardown(t *testing.T) {
-	remaining := len(teardownLists)
 
-	// make a "best-effort" at releasing all remaining resources
-	for _, list := range teardownLists {
+	// ensure all funcs in all lists are released
+	defer func() { teardownLists = make(map[string][]func()) }()
+	defer func() { debugTeardownLists = make(map[string][]func()) }()
+
+	// append each debug list to the corresponding (possibly empty) teardown list
+	for name, list := range debugTeardownLists {
+		teardownLists[name] = append(teardownLists[name], list...)
+	}
+
+	// release all remaining resources - this is a "best effort" as the order of iterating the map is arbitrary
+	uncleared := make([]string, 0)
+
+	for name, list := range teardownLists {
+		uncleared = append(uncleared, name)
+
 		for x := len(list) - 1; x >= 0; x-- {
 			list[x]()
 		}
 	}
 
-	// release all funcs in all lists
-	teardownLists = make(map[string][]func())
-
-	assert.Check(t, remaining == 0, "Error - %d teardownLists were left uncleared", remaining)
+	assert.Check(t, len(uncleared) == 0, "Error - %d teardownLists were left uncleared: %s", len(uncleared), uncleared)
 }
 
 func standardizeSpaces(s string) string {
@@ -682,6 +728,36 @@ func GetAdminEventLog(t *testing.T, namespace string, podName string) {
 	}
 }
 
+func GetFile(t *testing.T, namespace string, podname string, path string, filename string) error {
+	pwd, err := os.Getwd()
+	assert.NilError(t, err)
+
+	fromPath := fmt.Sprintf("%s/%s:%s/%s", namespace, podname, path, filename)
+	dirPath := filepath.Join(pwd, RESULT_DIR, namespace, podname)
+	toPath := filepath.Join(dirPath, filename)
+
+	_ = os.MkdirAll(dirPath, 0700)
+
+	f, err := os.Create(toPath)
+	assert.NilError(t, err)
+	defer f.Close()
+
+	options := k8s.NewKubectlOptions("", "")
+	options.Namespace = namespace
+
+	err = k8s.RunKubectlE(t, options,
+		"cp",
+		fromPath,
+		toPath,
+	)
+
+	if err != nil {
+		t.Log(err)
+	}
+
+	return err
+}
+
 func GetSecret(t *testing.T, namespace string, secretName string) *corev1.Secret {
 	options := k8s.NewKubectlOptions("", "")
 	options.Namespace = namespace
@@ -733,15 +809,11 @@ func RunSQL(t *testing.T, namespace string, podName string, databaseName string,
 
 	// secrets := getSecret(t, namespace, databaseName)
 
-	result, err = k8s.RunKubectlAndGetOutputE(t, options,
+	return k8s.RunKubectlAndGetOutputE(t, options,
 		"exec", podName, "--",
 		"bash", "-c",
 		fmt.Sprintf("echo \"%s;\" | /opt/nuodb/bin/nuosql --user dba --password secret %s", sql, databaseName),
 	)
-
-	assert.NilError(t, err, "runSQL: error trying to run ", sql)
-
-	return result, err
 }
 
 func ExecuteCommandsInPod(t *testing.T, podName string, namespaceName string, commands []string) {
