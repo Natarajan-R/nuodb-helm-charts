@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 # expects NUOCMD_API_SERVER to be set.
 if [ -n "${NUODB_OPTIONS}" ] ; then
