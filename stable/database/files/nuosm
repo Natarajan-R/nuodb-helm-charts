@@ -45,7 +45,7 @@ export NUOCMD DB_NAME
 #=======================================
 # function - report an error and exit
 #
-function die() {
+die() {
   retval=$1
   shift
   [ -n "$wotIdid" ] && echo "While $wotIdid"
@@ -68,7 +68,7 @@ function die() {
 #=======================================
 # function - log messages
 #
-function log() {
+log() {
   if [ -n "$NUODB_DEBUG" ]; then
     local err="$@"
     echo "$err" | tee -a $LOGFILE
@@ -79,7 +79,7 @@ function log() {
 #=======================================
 # function - trace workflow
 #
-function trace() {
+trace() {
   wotIdid="$@"
   [ -n "$1" -a -n "$NUODB_DEBUG" ] && log "trace: $wotIdid"
 }
@@ -87,7 +87,7 @@ function trace() {
 #=======================================
 # function - wrap a log file around so it doesn't grow infinitely
 #
-function wrapLogfile() {
+wrapLogfile() {
   logsize=$( du -sb $LOGFILE | grep -o '^ *[0-9]\+' )
   maxlog=5000000
   log "logsize=$logsize; maxlog=$maxlog"
@@ -111,7 +111,7 @@ function wrapLogfile() {
 #
 # On error, any copy of the replaced archive is retained.
 #
-function perform_restore() {
+perform_restore() {
 
   retval=0
   error=

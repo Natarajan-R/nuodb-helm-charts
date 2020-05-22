@@ -20,7 +20,7 @@ LOGFILE=${NUODB_LOGDIR:=/var/log/nuodb}/nuorestore.log
 #=======================================
 # function - log messages
 #
-function log() {
+log() {
   if [ -n "$NUODB_DEBUG" ]; then
     echo "nuorestore $@" | tee -a $LOGFILE
    #  curl -k -X POST -E /etc/nuodb/keys/nuocmd.pem -H "Content-type: application/json" $ap_protocol://$NUOADMIN_AP0:8888/api/1/diagnostics/log -d "{\"message\": \"nuorestore $@\"}"
@@ -30,7 +30,7 @@ function log() {
 #=======================================
 # function - trace workflow
 #
-function trace() {
+trace() {
   wotIdid="$@"
   [ -n "$1" -a -n "$NUODB_DEBUG" ] && log "trace: $wotIdid"
 }
@@ -38,7 +38,7 @@ function trace() {
 #=======================================
 # function - wrap a log file around so it doesn't grow infinitely
 #
-function wrapLogfile() {
+wrapLogfile() {
   logsize=$( du -sb $LOGFILE | grep -o '^ *[0-9]\+' )
   maxlog=5000000
   log "logsize=$logsize"
