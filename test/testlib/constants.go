@@ -35,6 +35,7 @@ const RESULT_DIR = "../../results"
 const INJECT_FILE = "../../versionInject.yaml"
 
 const IMPORT_ARCHIVE_URL = "https://download.nuohub.org/ce_releases/restore.bak.tz"
+
 // const RESTORE_EMPTYARCHIVE_URL = "https://download.nuohub.org/ce_releases/empty.bak.tz"
 // const RESTORE_ARCHIVE2_URL = "https://download.nuohub.org/ce_releases/restore2.bak.tz"
 const RESTORE_EMPTYARCHIVE_URL = "https://download.nuohub.org/ce_releases/empty.bak.tz"

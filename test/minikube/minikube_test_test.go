@@ -89,13 +89,18 @@ func TestNamedTeardown(t *testing.T) {
 	testlib.VerifyTeardown(t)
 }
 
-/* verify that a DebugTeardown is *always* executed *before* any other teardown for the same name */
-func TestDebugTeardown(t *testing.T) {
+/* verify that a DiagnosticTeardown is *always* executed *before* any other teardown for the same name */
+func TestDiagnosticTeardown(t *testing.T) {
 	tdcounter := 0
 
-	testlib.AddDebugTeardown("name", func() {
+	testlib.AddDiagnosticTeardown("name", func() {
 		tdcounter++
 		assert.Check(t, tdcounter == 1)
+	})
+
+	testlib.AddTeardown("name", func() {
+		tdcounter++
+		assert.Check(t, tdcounter == 3)
 	})
 
 	testlib.AddTeardown("name", func() {
@@ -105,7 +110,7 @@ func TestDebugTeardown(t *testing.T) {
 
 	testlib.Teardown("name")
 
-	assert.Check(t, tdcounter == 2)
+	assert.Check(t, tdcounter == 3)
 
 	testlib.VerifyTeardown(t)
 }
@@ -130,7 +135,7 @@ func TestGetExtractedOptions(t *testing.T) {
 				"database.te.replicas":           "2",
 				"database.sm.hotCopy.replicas":   "2",
 				"database.sm.noHotCopy.replicas": "2",
-				"cloud.cluster.name":              "cluster1",
+				"cloud.cluster.name":             "cluster1",
 			},
 		})
 

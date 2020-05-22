@@ -26,7 +26,7 @@ import (
 )
 
 var teardownLists = make(map[string][]func())
-var debugTeardownLists = make(map[string][]func())
+var diagnosticTeardownLists = make(map[string][]func())
 
 /**
  * add a teardown function to the named list - for deferred execution.
@@ -56,8 +56,8 @@ func AddTeardown(name string, teardownFunc func()) {
  * Nonetheless, there are use-cases where multiple Sleep() teardowns are useful - to allow inspecting different
  * intermediate states.
  */
-func AddDebugTeardown(name string, teardownFunc func()) {
-	debugTeardownLists[name] = append(debugTeardownLists[name], teardownFunc)
+func AddDiagnosticTeardown(name string, teardownFunc func()) {
+	diagnosticTeardownLists[name] = append(diagnosticTeardownLists[name], teardownFunc)
 }
 
 /**
@@ -72,11 +72,11 @@ func AddDebugTeardown(name string, teardownFunc func()) {
 func Teardown(name string) {
 
 	// ensure both list and debug list are removed.
-	defer func() { delete(debugTeardownLists, name) }()
+	defer func() { delete(diagnosticTeardownLists, name) }()
 	defer func() { delete(teardownLists, name) }()
 
 	list := teardownLists[name]
-	list = append(list, debugTeardownLists[name]...) // append any debug funcs - so they are called FIRST
+	list = append(list, diagnosticTeardownLists[name]...) // append any debug funcs - so they are called FIRST
 
 	for x := len(list) - 1; x >= 0; x-- {
 		list[x]()
@@ -96,10 +96,10 @@ func VerifyTeardown(t *testing.T) {
 
 	// ensure all funcs in all lists are released
 	defer func() { teardownLists = make(map[string][]func()) }()
-	defer func() { debugTeardownLists = make(map[string][]func()) }()
+	defer func() { diagnosticTeardownLists = make(map[string][]func()) }()
 
 	// append each debug list to the corresponding (possibly empty) teardown list
-	for name, list := range debugTeardownLists {
+	for name, list := range diagnosticTeardownLists {
 		teardownLists[name] = append(teardownLists[name], list...)
 	}
 
@@ -506,8 +506,12 @@ func AwaitProcessRestart(t *testing.T, namespace string, podName string, restart
 }
 
 func VerifyProcessRestartFails(t *testing.T, namespace string, podName string, restart func()) {
-	restart()
-	AwaitPodPhase(t, namespace, podName, corev1.PodFailed, 30*time.Second)
+	AwaitProcessRestart(t, namespace, podName, restart)
+
+	pod, _ := findPod(t, namespace, podName)
+	Await(t, func() bool {
+		return strings.Contains(fmt.Sprint(pod.Status), "CrashLoopBackoff")
+	}, 120*time.Second)
 }
 
 func AwaitPodRestartCountGreaterThan(t *testing.T, namespace string, podName string, expectedRestartCount int32) {
