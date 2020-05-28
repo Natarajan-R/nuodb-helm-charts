@@ -26,7 +26,13 @@ spec:
         - "{{ .Values.database.name }}"
         - "--check-running"
         - "--wait-forever"
-
+      - name: wait-for-database-bootstrapped
+        image: {{ template "nuodb.image" . }}
+        imagePullPolicy: {{ .Values.nuodb.image.pullPolicy }}
+        args:
+        - "bash"
+        - "-c"
+        - "echo 'select 1 from dual;' | nuosql {{.Values.database.name}}@{{ template "admin.address" . }} --user {{.Values.database.rootUser}} --password {{.Values.database.rootPassword}}"
       containers:
       - name: nuodb
         image: {{ template "nuodb.image" . }}
