@@ -831,3 +831,15 @@ func LabelNodes(t *testing.T, namespaceName string, labelName string, labelValue
 		assert.NilError(t, err, "Labeling node %s with '%s' failed", node.Name, labelString)
 	}
 }
+
+func RetrieveBackupDirectory(t *testing.T, namespaceName string, podName string) {
+	options := k8s.NewKubectlOptions("", "")
+	options.Namespace = namespaceName
+
+	pwd, err := os.Getwd()
+	assert.NilError(t, err)
+	targetDirPath := filepath.Join(pwd, RESULT_DIR, namespaceName, "backups")
+	_ = os.MkdirAll(targetDirPath, 0700)
+
+	k8s.RunKubectl(t, options, "cp", fmt.Sprintf("%s:/var/opt/nuodb/backup", podName), targetDirPath)
+}

@@ -4,8 +4,6 @@ package minikube
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -552,12 +550,7 @@ func TestKubernetesRestoreDatabase(t *testing.T) {
 	smPodName0 := testlib.GetPodName(t, namespaceName, smPodName)
 	testlib.GetAppLog(t, namespaceName, smPodName0, "_pre-restart", &corev1.PodLogOptions{})
 
-	pwd, err := os.Getwd()
-	assert.NilError(t, err)
-	targetDirPath := filepath.Join(pwd, testlib.RESULT_DIR, namespaceName, "backups")
-	_ = os.MkdirAll(targetDirPath, 0700)
-
-	k8s.RunKubectl(t, opts, "cp", fmt.Sprintf("%s:/var/opt/nuodb/backup", smPodName0), targetDirPath)
+	testlib.RetrieveBackupDirectory(t, namespaceName, smPodName0)
 
 	// restore database
 	defer testlib.Teardown(testlib.TEARDOWN_RESTORE)
