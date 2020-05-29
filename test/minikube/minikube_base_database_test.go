@@ -513,27 +513,16 @@ func TestKubernetesRestoreDatabase(t *testing.T) {
 		if t.Failed() {
 			testlib.GetDiagnoseOnTestFailure(t, namespaceName, admin0)
 			testlib.RecoverCoresFromTEs(t, namespaceName, "demo")
+			testlib.GetClusterInfoDump(t, namespaceName)
 		}
 	})
-
-	opts := k8s.NewKubectlOptions("", "")
-	opts.Namespace = namespaceName
-	databaseOptions.KubectlOptions = opts
 
 	// wait for the initial backup to complete
 	databaseName := "demo"
 	backupJob := fmt.Sprintf("hotcopy-%s-job-initial-", databaseName)
 	testlib.AwaitPodPhase(t, namespaceName, backupJob, corev1.PodSucceeded, 120*time.Second)
 
-	// populate some data
-	k8s.RunKubectl(t, opts,
-		"exec", admin0, "--",
-		"/opt/nuodb/bin/nuosql",
-		"--user", "dba",
-		"--password", "secret",
-		"demo",
-		"--file", "/opt/nuodb/samples/quickstart/sql/create-db.sql",
-	)
+	executeCreateDBSQuickstartScript(t, namespaceName, admin0)
 
 	// verify that the database contains the populated data
 	tables, err := testlib.RunSQL(t, namespaceName, admin0, "demo", "show schema User")
@@ -560,6 +549,21 @@ func TestKubernetesRestoreDatabase(t *testing.T) {
 	tables, err = testlib.RunSQL(t, namespaceName, admin0, "demo", "show schema User")
 	assert.NilError(t, err, "error running SQL: show schema User")
 	assert.Check(t, strings.Contains(tables, "No tables found in schema "), "Show schema returned: ", tables)
+}
+
+func executeCreateDBSQuickstartScript(t *testing.T, namespaceName string, adminPod string) {
+	options := k8s.NewKubectlOptions("", "")
+	options.Namespace = namespaceName
+
+	// populate some data
+	k8s.RunKubectl(t, options,
+		"exec", adminPod, "--",
+		"/opt/nuodb/bin/nuosql",
+		"--user", "dba",
+		"--password", "secret",
+		"demo",
+		"--file", "/opt/nuodb/samples/quickstart/sql/create-db.sql",
+	)
 }
 
 func TestKubernetesImportDatabase(t *testing.T) {
