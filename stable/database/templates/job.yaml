@@ -32,7 +32,7 @@ spec:
         args:
         - "bash"
         - "-c"
-        - "echo 'select 1 from dual;' | nuosql {{.Values.database.name}}@{{ template "admin.address" . }} --user {{.Values.database.rootUser}} --password {{.Values.database.rootPassword}}"
+        - "until echo 'select 1 from dual;' | nuosql {{.Values.database.name}}@{{ template "admin.address" . }} --user {{.Values.database.rootUser}} --password {{.Values.database.rootPassword}} ; do sleep 1; done"
       containers:
       - name: nuodb
         image: {{ template "nuodb.image" . }}
