@@ -850,7 +850,7 @@ func GetClusterInfoDump(t *testing.T, namespaceName string) {
 
 	pwd, err := os.Getwd()
 	assert.NilError(t, err)
-	targetDirPath := filepath.Join(pwd, RESULT_DIR, namespaceName, "backups")
+	targetDirPath := filepath.Join(pwd, RESULT_DIR, namespaceName, "dumps")
 	_ = os.MkdirAll(targetDirPath, 0700)
 
 	k8s.RunKubectl(t, options, "cluster-info", "dump", "--output-directory", targetDirPath)
