@@ -503,6 +503,7 @@ func TestKubernetesRestoreDatabase(t *testing.T) {
 			"backup.persistence.enabled":            "true",
 			"backup.persistence.size":               "1Gi",
 			"database.te.logPersistence.enabled":    "true",
+			"database.te.logPersistence.size":       "1Gi",
 		},
 	}
 
