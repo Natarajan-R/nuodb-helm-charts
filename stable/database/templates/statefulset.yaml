@@ -56,10 +56,14 @@ spec:
       - name: init-disk
         image: {{ template "init.image" . }}
         imagePullPolicy: {{ default "" .Values.busybox.image.pullPolicy | quote }}
-        command: ['chmod' , '770', '/var/opt/nuodb/archive', '/var/log/nuodb']
+        command: ['chmod' , '770', '/var/opt/nuodb/archive', '/var/opt/nuodb/journal', '/var/log/nuodb']
         volumeMounts:
         - name: archive-volume
           mountPath: /var/opt/nuodb/archive
+        {{- if .Values.database.journalPersistence.enabled }}
+        - name: journal-volume
+          mountPath: /var/opt/nuodb/journal
+        {{- end }}
         - name: log-volume
           mountPath: /var/log/nuodb
       containers:
@@ -131,6 +135,9 @@ spec:
             secretKeyRef:
               name: {{ .Values.database.name }}.nuodb.com
               key: database-restore-credentials
+        {{- if .Values.database.journalPersistence.enabled }}
+        - { name: NUODB_JOURNALDIR,    value: "/var/opt/nuodb/journal" }
+        {{- end }}
         - { name: NUODB_DOMAIN,        value: "{{ .Values.admin.domain }}" }
         - { name: NUOCMD_API_SERVER,   value: "{{ template "admin.address" . }}:8888" }
         - { name: PEER_ADDRESS,        value: "{{ template "admin.address" . }}" }
@@ -169,6 +176,11 @@ spec:
           subPath: readinessprobe
         - mountPath: /var/opt/nuodb/archive
           name: archive-volume
+          subPath: archive
+        {{- if .Values.database.journalPersistence.enabled }}
+        - mountPath: /var/opt/nuodb/journal
+          name: journal-volume
+        {{- end }}
         {{- if .Values.admin.tlsCACert }}
         - name: tls-ca-cert
           mountPath: /etc/nuodb/keys/ca.cert
@@ -292,6 +304,32 @@ spec:
         requests:
           storage: {{ .Values.database.sm.logPersistence.size }}
   {{- end }}
+  {{- if .Values.database.journalPersistence.enabled }}
+  - metadata:
+      name: journal-volume
+      labels:
+        app: {{ template "database.fullname" . }}
+        group: nuodb
+        database: {{ .Values.database.name }}
+        domain: {{ .Values.admin.domain }}
+        chart: {{ template "database.chart" . }}
+        release: {{ .Release.Name | quote }}
+    spec:
+      accessModes:
+      {{- range .Values.database.journalPersistence.accessModes }}
+        - {{ . }}
+      {{- end }}
+    {{- if .Values.database.journalPersistence.storageClass }}
+      {{- if (eq "-" .Values.database.journalPersistence.storageClass) }}
+      storageClassName: ""
+      {{- else }}
+      storageClassName: {{ .Values.database.journalPersistence.storageClass }}
+      {{- end }}
+    {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.database.journalPersistence.size }}
+  {{- end }}
 {{- end }}
 
 {{- if .Values.database.sm.hotCopy.enablePod }}
@@ -351,10 +389,14 @@ spec:
       - name: init-disk
         image: {{ template "init.image" . }}
         imagePullPolicy: {{ default "" .Values.busybox.image.pullPolicy | quote }}
-        command: ['chmod' , '770', '/var/opt/nuodb/archive', 'var/opt/nuodb/backup', '/var/log/nuodb']
+        command: ['chmod' , '770', '/var/opt/nuodb/archive', 'var/opt/nuodb/journal', 'var/opt/nuodb/backup', '/var/log/nuodb']
         volumeMounts:
         - name: archive-volume
           mountPath: /var/opt/nuodb/archive
+        {{- if .Values.database.journalPersistence.enabled }}
+        - name: journal-volume
+          mountPath: /var/opt/nuodb/journal
+        {{- end }}
         - name: backup-volume
           mountPath: /var/opt/nuodb/backup
         - name: log-volume
@@ -428,6 +470,9 @@ spec:
             secretKeyRef:
               name: {{ .Values.database.name }}.nuodb.com
               key: database-backup-credentials
+        {{- if .Values.database.journalPersistence.enabled }}
+        - { name: NUODB_JOURNALDIR,    value: "/var/opt/nuodb/journal" }
+        {{- end }}
         - { name: NUODB_DOMAIN,        value: "{{ .Values.admin.domain }}" }
         - { name: NUOCMD_API_SERVER,   value: "{{ template "admin.address" . }}:8888" }
         - { name: PEER_ADDRESS,        value: "{{ template "admin.address" . }}" }
@@ -467,6 +512,11 @@ spec:
           subPath: readinessprobe
         - mountPath: /var/opt/nuodb/archive
           name: archive-volume
+          subPath: archive
+        {{- if .Values.database.journalPersistence.enabled }}
+        - mountPath: /var/opt/nuodb/journal
+          name: journal-volume
+        {{- end }}
         - mountPath: /var/opt/nuodb/backup
           name: backup-volume
         {{- if .Values.admin.tlsCACert }}
@@ -615,6 +665,32 @@ spec:
       resources:
         requests:
           storage: {{ .Values.database.sm.logPersistence.size }}
+  {{- end }}
+  {{- if .Values.database.journalPersistence.enabled }}
+  - metadata:
+      name: journal-volume
+      labels:
+        app: {{ template "database.fullname" . }}
+        group: nuodb
+        database: {{ .Values.database.name }}
+        domain: {{ .Values.admin.domain }}
+        chart: {{ template "database.chart" . }}
+        release: {{ .Release.Name | quote }}
+    spec:
+      accessModes:
+      {{- range .Values.database.journalPersistence.accessModes }}
+        - {{ . }}
+      {{- end }}
+    {{- if .Values.database.journalPersistence.storageClass }}
+      {{- if (eq "-" .Values.database.journalPersistence.storageClass) }}
+      storageClassName: ""
+      {{- else }}
+      storageClassName: {{ .Values.database.journalPersistence.storageClass }}
+      {{- end }}
+    {{- end }}
+      resources:
+        requests:
+          storage: {{ .Values.database.journalPersistence.size }}
   {{- end }}
 {{- end }}
 {{- end }}

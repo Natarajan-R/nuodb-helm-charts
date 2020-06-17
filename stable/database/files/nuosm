@@ -8,6 +8,7 @@ NUODB_DEBUG="false"
 #[ -n "$NUODB_DEBUG" ] && set -x
 
 : ${NUODB_ARCHIVEDIR:=/var/opt/nuodb/archive}
+: ${NUODB_JOURNALDIR:=/var/opt/nuodb/archive}
 : ${NUODB_BACKUPDIR:=/var/opt/nuodb/backup}
 : ${NUODB_DOMAIN:="nuodb"}
 : ${NUODB_SEQUENCE_SYNC:=true}
@@ -17,6 +18,7 @@ NUODB_DEBUG="false"
 startup_key="/nuodb/nuosm/startup"
 
 DB_DIR=${NUODB_ARCHIVEDIR}/${NUODB_DOMAIN}/${DB_NAME}
+DB_JOURNAL_DIR=${NUODB_JOURNALDIR}/${NUODB_DOMAIN}/${DB_NAME}/journal
 
 NUODB_BINDIR=$NUODB_HOME/bin
 [ -z "$NUOCMD" ] && NUOCMD="$NUODB_BINDIR/nuocmd --api-server $NUOCMD_API_SERVER"
@@ -93,6 +95,7 @@ function perform_restore() {
   fi
 
   mkdir $DB_DIR
+  mkdir $DB_JOURNAL_DIR
 
   # find the backup set and backup id
   # backupset=$(ls -tl $BACKUPDIR | head -n 1)
@@ -105,8 +108,9 @@ function perform_restore() {
     curl -k --user "$restore_credentials" $restore_source | tar xzf - --strip-components $strip_levels -C $DB_DIR
 
     chown -R $(echo "${NUODB_OS_USER:-1000}:${NUODB_OS_GROUP:-0}" | tr -d '"') $DB_DIR
+    chown -R $(echo "${NUODB_OS_USER:-1000}:${NUODB_OS_GROUP:-0}" | tr -d '"') $DB_JOURNAL_DIR
   else
-    $NUODB_BINDIR/nuoarchive restore --restore-dir $DB_DIR $NUODB_BACKUPDIR/$restore_source
+    $NUODB_BINDIR/nuoarchive restore --restore-dir $DB_DIR --journal-dir $DB_JOURNAL_DIR $NUODB_BACKUPDIR/$restore_source
   fi
 
   # # call nuodocker to fix the archive metadata
@@ -125,6 +129,11 @@ function perform_restore() {
 # ensure DB_DIR exists
 if [ ! -e "${DB_DIR}" ] ; then
   mkdir -p "${DB_DIR}"
+fi
+
+# ensure DB_JOURNAL_DIR exists
+if [ ! -e "${DB_JOURNAL_DIR}" ] ; then
+  mkdir -p "${DB_JOURNAL_DIR}"
 fi
 
 first_req="$NUODB_RESTORE_REQUEST_PREFIX/$DB_NAME/first"
@@ -268,7 +277,7 @@ if [ -n "$restore_requested" -a -n "$restore_source" ]; then
   done
 
   # call nuodocker to fix the archive metadata
-  nuodocker --api-server $NUOCMD_API_SERVER restore archive --origin-dir $DB_DIR --restore-dir $DB_DIR --db-name $DB_NAME --clean-metadata
+  nuodocker --api-server $NUOCMD_API_SERVER restore archive --origin-dir $DB_DIR --restore-dir $DB_DIR --journal-dir $DB_JOURNAL_DIR --db-name $DB_NAME --clean-metadata
 
   # completely delete my previous archive metadata
   # this is required because nuodocker always creates a new archive
@@ -279,7 +288,7 @@ fi
 # release my archive if it is locked
 # this will likely never execute but has been left in for completeness
 locked_archive=$( $NUOCMD show archives --db-name $DB_NAME --removed --removed-archive-format "archive-id: {id}" | sed -En "/^archive-id: / {N; /$HOSTNAME/ s/^archive-id: ([0-9]+).*$/\1/; T; p}" | head -n 1 )
-[ -n "$locked_archive" ] && $NUOCMD create archive --db-name $DB_NAME --archive-path $DB_DIR --is-external --restored --archive-id $locked_archive
+[ -n "$locked_archive" ] && $NUOCMD create archive --db-name $DB_NAME --archive-path $DB_DIR --journal-path $DB_JOURNAL_DIR --is-external --restored --archive-id $locked_archive
 
 # if a RESTORE_SOURCE is defined, and the archive dir is empty, then import/restore from the URL
 if [ -n "$restore_source" -a -z "$restore_requested" -a ! -f $DB_DIR/1.atm ]; then
@@ -303,11 +312,13 @@ if [ -n "$restore_source" -a -z "$restore_requested" -a ! -f $DB_DIR/1.atm ]; th
     curl -k --user "$restore_credentials" $restore_source | tar xzf - --strip-components $strip_levels -C $auto_download_dir
 
     chown -R $(echo "${NUODB_OS_USER:-1000}:${NUODB_OS_GROUP:-0}" | tr -d '"') $DB_DIR
+    chown -R $(echo "${NUODB_OS_USER:-1000}:${NUODB_OS_GROUP:-0}" | tr -d '"') $DB_JOURNAL_DIR
 
     [ -n "$NUODB_DEBUG" ] && ls -l $DB_DIR
+    [ -n "$NUODB_DEBUG" ] && ls -l $DB_JOURNAL_DIR
     
     # restore and/or fix the metadata
-    nuodocker --api-server $NUOCMD_API_SERVER restore archive --origin-dir $auto_download_dir --restore-dir $DB_DIR --db-name $DB_NAME --clean-metadata
+    nuodocker --api-server $NUOCMD_API_SERVER restore archive --origin-dir $auto_download_dir --restore-dir $DB_DIR --journal-dir $DB_JOURNAL_DIR --db-name $DB_NAME --clean-metadata
     
     if [ "$auto_download_dir" != "$DB_DIR" ]; then
       echo "removing $auto_download_dir"
@@ -330,7 +341,7 @@ fi
 
 # expects NUOCMD_API_SERVER to be set.
 if [ -n "${NUODB_OPTIONS}" ] ; then
-    exec nuodocker start sm --archive-dir "${DB_DIR}" --dba-user "${DB_USER}" --dba-password "${DB_PASSWORD}" --db-name "${DB_NAME}" --options "${NUODB_OPTIONS}" "$@"
+    exec nuodocker start sm --archive-dir "${DB_DIR}" --journal-dir "${DB_JOURNAL_DIR}" --dba-user "${DB_USER}" --dba-password "${DB_PASSWORD}" --db-name "${DB_NAME}" --options "${NUODB_OPTIONS}" "$@"
 else
-    exec nuodocker start sm --archive-dir "${DB_DIR}" --dba-user "${DB_USER}" --dba-password "${DB_PASSWORD}" --db-name "${DB_NAME}" "$@"
+    exec nuodocker start sm --archive-dir "${DB_DIR}" --journal-dir "${DB_JOURNAL_DIR}" --dba-user "${DB_USER}" --dba-password "${DB_PASSWORD}" --db-name "${DB_NAME}" "$@"
 fi
